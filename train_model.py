@@ -1,8 +1,15 @@
-# Trains a specified model on the dataset
+# Trains a specified model on specified dataset
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
+
+from tqdm import tqdm
+
+import pickle
+
+import sys
 
 '''
 Params dictionary:
@@ -10,39 +17,55 @@ Params dictionary:
     "criterion": pytorch loss function,
     "optimizer": pytorch optimizer,
     "scheduler": pytorch learning rate scheduler,
-    "num_epochs": int,
-    "lr": float,
-    "batch_size": int,
-    "device": torch.device,
+    "num_epochs": int
 }
 '''
 
 
-def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, scheduler:optim.lr_scheduler, num_epochs=25):
+def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None):
     
-    return # Model Weights
+    for epoch in tqdm(range(num_epochs)):
+        running_loss = 0.0
+
+        for sequences, targets in dataset:
+            optimizer.zero_grad()
+            outputs = model(sequences)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        
+        avg_loss = running_loss / len(dataset)
+        print(f"Epoch {epoch+1}, Loss: {running_loss}")
+
+        if scheduler is not None:
+            scheduler.step()
+
+    return model.state_dict()
 
 
 
-# Main function
+# train_model_start function
 # Arguments:
 #   model: The model to train
 #   params: A dictionary containing the parameters for training
 # Returns: Trained model weights
-def main(model:nn.Module, params:dict):
+def train_model_start(model:nn.Module, params:dict, dataset:DataLoader):
 
     # Unpack parameters
     criterion = params["criterion"]
     optimizer = params["optimizer"]
     scheduler = params["scheduler"]
     num_epochs = params["num_epochs"]
-    lr = params["lr"]
-    batch_size = params["batch_size"]
-    device = params["device"]
 
     # Set model to training mode
     model.train(True)
     
-    weights = train_model(model, criterion, optimizer, scheduler, num_epochs)
+    weights = train_model(model, criterion, optimizer, dataset, num_epochs, scheduler)
 
-    pass
+    return weights
+
+    # WILL ACTUALLY SAVE WEIGHTS IN OTHER FILES
+    # Save weights to file
+    # pickle.dump(weights, open("models/model_weights/" + model.get_name() + "/" + model.get_name() + "_weights.pkl", "wb"))
+
