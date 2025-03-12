@@ -3,6 +3,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def compute_timestep_correlation(x):
+    """
+    Computes the correlation matrix for each sample in the batch over timesteps.
+    
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, timesteps, features]
+        
+    Returns:
+        torch.Tensor: Correlation matrix of shape [batch, timesteps, timesteps]
+    """
+    # Compute mean and std along the feature dimension for each timestep
+    mean = x.mean(dim=-1, keepdim=True)         # shape: [batch, timesteps, 1]
+    std = x.std(dim=-1, keepdim=True, unbiased=False)  # shape: [batch, timesteps, 1]
+    
+    # Normalize each timestep's features (avoid division by zero)
+    x_norm = (x - mean) / (std + 1e-6)            # shape: [batch, timesteps, features]
+    
+    # Compute correlation matrix for each sample using batch matrix multiplication.
+    # This gives a [batch, timesteps, timesteps] tensor.
+    # Dividing by (features - 1) is used if you're after a sample-based Pearson correlation.
+    corr_matrix = torch.bmm(x_norm, x_norm.transpose(1, 2)) / (x.shape[-1] - 1)
+    
+    return corr_matrix
+
+
 class DNN(nn.Module):
     def __init__(self):
         super(DNN, self).__init__()
@@ -85,12 +110,10 @@ class LSTMCNNModel(nn.Module):
         lstm_out = lstm_out[:, -1, :]  # Taking the last timestep output
         
         # paper is super unclear on this. They do the CNN over the correlation matrix I believe though
-        mean_x = x.mean(dim=0, keepdim=True)  # Mean over features (dim=0)
-        std_x = x.std(dim=0, keepdim=True, unbiased=False)  # Standard deviation over features
-        # Normalize the input data (standardization)
-        normalized_x = (x - mean_x) / (std_x + 1e-6)  # Avoid division by zero
-        # Compute the correlation matrix (Pearson correlation) for 14 samples
-        correlation_matrix = torch.mm(normalized_x, normalized_x.T) / (x.shape[0] - 1)
+        # shape: [batch, timesteps, featurelength] = [_, 14, 50] in the paper
+        correlation_matrix = compute_timestep_correlation(x).unsqueeze(1)
+        #.unsqueeze turns it into shape [batch, 1 , timesteps, featurelength]
+        # so that way it should be able to go into the CNN now
         
         # [Conv -> ReLU -> MaxPool]
         cnn_out = F.relu(self.conv1(correlation_matrix))
@@ -109,5 +132,7 @@ class LSTMCNNModel(nn.Module):
         combined = torch.cat((lstm_out, cnn_out), dim=1)
         assert combined.shape[1] == 484, f"Expected 484, but got {combined.shape[1]}"
         
-        self.DNN1.forward(combined)
+        return self.DNN1(combined)
+
+
 
