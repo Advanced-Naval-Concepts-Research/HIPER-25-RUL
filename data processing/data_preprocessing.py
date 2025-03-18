@@ -3,6 +3,8 @@
 
 import pandas as pd
 import numpy as np
+import scipy as sp
+import os
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 
@@ -47,7 +49,7 @@ def parse_avg_sensor_data(dir:str, seq_failures_filename:str) -> dict:
 
     data_dict = {1:[], 2:[], 3:[]} # dict of operational profile to list of failure profiles and sequence point failures
 
-    # seq_failures = pd.read_csv(seq_failures_filename)["Combined"].tolist() # TODO Once I get the data, may need to parse out based on operational profile 
+    seq_failures = pd.read_csv(seq_failures_filename)["Combined"].tolist() # TODO Once I get the data, may need to parse out based on operational profile 
 
     # Walk through the directory
     for i in range(1, 101):
@@ -66,7 +68,7 @@ def parse_avg_sensor_data(dir:str, seq_failures_filename:str) -> dict:
 
 # Create train, test, validation splits of the data for specified groupings of sensors for all data sources over all operational profiles
 # Returns dict of {operational profile: PyTorch Dataset of train, test, and validation splits}
-def create_train_test_val_splits(data_dict:dict, sensor_group:list, sequence_length:int, split:list=[0.8, 0.1, 0.1], num_iters:int=1, batch_size:int=4) -> dict:
+def create_train_test_val_splits(data_dict:dict, sensor_group:dict, sequence_length:int, split:list=[0.8, 0.1, 0.1], num_iters:int=1, batch_size:int=4) -> dict:
     """
     data_dict: dict of {operational profile: list of failure profiles and sequence point failures}
     sensor_group: list of sensors to include in the dataset
@@ -105,16 +107,62 @@ def create_train_test_val_splits(data_dict:dict, sensor_group:list, sequence_len
 
     return datasets, dataloaders
 
-# Loads data and places them into PyTorch Dataset and Dataloader objects
-def get_data(data_dir, sequences_filename):
-    pass
+# Creates sensor groups based on the specified sensors TODO
+# Since plants are independent of each other, we can create separate sensor groups for each plant
+def create_sensor_groups():
+    sensors = {}
+
+    # Group 1 TODO
+    sensors["s1_g1"] = []
+    sensors["s2_g1"] = []
+
+    # Group 2
+    sensors["s1_g2"] = []
+    sensors["s2_g2"] = []
+
+    # Group 3
+    sensors["s1_g3"] = []
+    sensors["s2_g3"] = []
+
+    return sensors
+
+# Loads data and places them into PyTorch Dataset and Dataloader objects for all sensor groups
+def get_data(data_dir, sequences_filename, num_iters=1, batch_size=4):
+    data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
+
+    sensor_groups = create_sensor_groups()
+
+    sensor_to_datasets = {}
+
+    for group_id, sensor_group in sensor_groups.items():
+        datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 30, [0.8, 0.1, 0.1], num_iters=num_iters, batch_size=batch_size)
+        sensor_to_datasets[group_id] = (datasets, dataloaders)
+
+    return sensor_to_datasets
 
 # Saves datasets and dataloaders to files
-def save_data(datasets, dataloaders, save_dir):
+def save_data(sensor_to_datasets, save_dir):
+    
+    for sensor_group, t in sensor_to_datasets.items():
+        datasets, dataloaders = t
+
+        # Create dir
+        dir = save_dir + "/" + sensor_group
+        os.makedirs(dir, exist_ok=True)
+
+        # Save datasets to dir
+        for dataset in datasets:
+            torch.save(dataset, dir + "/" + "dataset_" + str(dataset) + ".pt")
+
+# Performs a 2nd degree polynomial interpolation on the specified dataset
+# Returns the interpolated dataset
+def polynomial_interpolation(dataset, num_points):
     pass
 
 
 if __name__ == "__main__":
-    parse_avg_sensor_data("data/AvgValue_Data", "data/sequence_failures.csv")
+    data_dict = parse_avg_sensor_data("data/AvgValue_Data", "data/Failure_Profile_Labels/labels.csv")
+    sensor_group = create_sensor_groups()
+
+    datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 4, [0.8, 0.1, 0.1], num_iters=1, batch_size=8)
     pass
-    # parse_avg_sensor_data("data/avg_sensor_values", "data/sequence_failures.csv")
