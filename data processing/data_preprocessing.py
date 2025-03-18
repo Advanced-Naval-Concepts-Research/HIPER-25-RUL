@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 
 class RULDataset(torch.utils.data.Dataset):
-    def __init__(self, sensor_data, rul_labels, sequence_length, transform=None):
+    def __init__(self, sensor_data, rul_labels, transform=None):
         """
         Args:
             sensor_data (array-like): Time-series sensor readings (num_samples, time_steps, sensors).
@@ -19,17 +19,16 @@ class RULDataset(torch.utils.data.Dataset):
         """
         self.sensor_data = sensor_data
         self.rul_labels = rul_labels
-        self.sequence_length = sequence_length
         self.transform = transform
 
     def __len__(self):
         # Total number of complete sequences in the dataset
-        return len(self.sensor_data) - self.sequence_length + 1
+        return len(self.sensor_data)
 
     def __getitem__(self, idx):
         # Retrieve the sequence and the corresponding RUL label
-        sequence = self.sensor_data[idx:idx + self.sequence_length, :, :]
-        label = self.rul_labels[idx + self.sequence_length - 1]
+        sequence = self.sensor_data[idx]
+        label = self.rul_labels[idx]
 
         # Transformation
         if self.transform:
@@ -38,28 +37,25 @@ class RULDataset(torch.utils.data.Dataset):
         return torch.tensor(sequence, dtype=torch.float32), torch.tensor(label, dtype=torch.float32)
 
 
-# Group 1 (All sensors in cooling and fueling systems): temp delta, cooling flow rate, cooling pump current and pressure delta, fuel lp flow, fuel hp rail, fuel hp relief, fuel lp pressure, fuel hp pressure, fuel lp current, fuel hp current
-# Group 2 (Current and pressure sensors only): cooling pump current, cooling pressure delta, fuel lp pressure, fuel hp pressure, fuel lp current, fuel hp current
-# Group 3 (current sensors only): cooling pump current, fuel lp current, fuel hp current
-
-
 # Reads in the sensor values for each opeartional profile from the specified directory and their associated sequence failures
+# Only parses over labeled data. In this case, labeled data are failures where clogs occur
 # Returns dict of {operational profile: list of failure profiles and sequence point failures}
 def parse_avg_sensor_data(dir:str, seq_failures_filename:str) -> dict:
 
     data_dict = {1:[], 2:[], 3:[]} # dict of operational profile to list of failure profiles and sequence point failures
 
-    seq_failures = pd.read_csv(seq_failures_filename)["Combined"].tolist() # TODO Once I get the data, may need to parse out based on operational profile 
+    seq_failures = pd.read_csv(seq_failures_filename)
 
     # Walk through the directory
-    for i in range(1, 101):
+    for idx, row in seq_failures.iterrows():
+        i = row["Failure Profile"]
         fp_dir = dir + "/Failure_Profile_" + str(i)
 
         # Read in failure profiles for each operational profile
         for j in range(1,4):
             filename = "AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_" + str(j) + ".csv"
             fp_df = pd.read_csv(fp_dir + "/" + filename)
-            data_dict[j].append(tuple(fp_df, 0)) # TODO update with correct sequence failure later
+            data_dict[j].append(tuple([fp_df, row.iloc[j]]))
 
     return data_dict
 
@@ -68,7 +64,7 @@ def parse_avg_sensor_data(dir:str, seq_failures_filename:str) -> dict:
 
 # Create train, test, validation splits of the data for specified groupings of sensors for all data sources over all operational profiles
 # Returns dict of {operational profile: PyTorch Dataset of train, test, and validation splits}
-def create_train_test_val_splits(data_dict:dict, sensor_group:dict, sequence_length:int, split:list=[0.8, 0.1, 0.1], num_iters:int=1, batch_size:int=4) -> dict:
+def create_train_test_val_splits(data_dict:dict, sensor_group:dict, split:list=[0.8, 0.1, 0.1], num_iters:int=1, batch_size:int=4) -> dict:
     """
     data_dict: dict of {operational profile: list of failure profiles and sequence point failures}
     sensor_group: list of sensors to include in the dataset
@@ -77,52 +73,62 @@ def create_train_test_val_splits(data_dict:dict, sensor_group:dict, sequence_len
     num_iters: number of times to split the data into train, test, and validation
     """
     
-    train_size = split[0] * len(data_dict[1])
-    test_size = split[1] * len(data_dict[1])
+    train_size = int(split[0] * len(data_dict[1]))
+    test_size = int(split[1] * len(data_dict[1]))
     val_size = len(data_dict[1]) - train_size - test_size
 
     # Create Datasets for each operational profile
     datasets = {1: [], 2: [], 3: []}
-    for i in range(1, 4):
-        op_prof_data = []
-        op_prof_labels = []
-        for j in range(len(data_dict[i])):
-            sensor_data = data_dict[i][j][0][sensor_group].to_numpy()
-            rul_labels = data_dict[i][j][1].to_numpy()
-            op_prof_data.append(sensor_data)
-            op_prof_labels.append(rul_labels)
+    for i in range(1, 4): # For each operational profile
+    
+        for sequence_length in range(4,7): # For each sequence length
 
-        dataset = RULDataset(np.array(op_prof_data), np.array(op_prof_labels), sequence_length)
-        datasets[i] = dataset
+            op_prof_data = []
+            op_prof_labels = []
+            for j in range(len(data_dict[i])):
+                sensor_data = data_dict[i][j][0][sensor_group].to_numpy()[:sequence_length]
+                rul_labels = data_dict[i][j][1]
+                op_prof_data.append(sensor_data)
+                op_prof_labels.append(rul_labels)
+
+            dataset = RULDataset(np.array(op_prof_data), np.array(op_prof_labels))
+            datasets[i].append(dataset)
 
     # Split the data into train, test, and validation for each operational profile for number_split times
     dataloaders = {1: [], 2: [], 3: []}
     for i in range(num_iters):
-        for j in range(1, 4):
-            train, test, val = random_split(datasets[j], [train_size, test_size, val_size])
-            train_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
-            test_loader = DataLoader(test, batch_size=batch_size, shuffle=True)
-            val_loader = DataLoader(val, batch_size=batch_size, shuffle=True)
-            dataloaders[j].append((train_loader, test_loader, val_loader))
+        for j in range(1, 4): # Operational profile
+            for k in range(3): # Sequence length
+                train, test, val = random_split(datasets[j][k], [train_size, test_size, val_size])
+                train_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
+                test_loader = DataLoader(test, batch_size=batch_size, shuffle=True)
+                val_loader = DataLoader(val, batch_size=batch_size, shuffle=True)
+                dataloaders[j].append((train_loader, test_loader, val_loader))
 
     return datasets, dataloaders
 
-# Creates sensor groups based on the specified sensors TODO
+# Creates sensor groups based on the specified sensors
 # Since plants are independent of each other, we can create separate sensor groups for each plant
+# Group 1 (All sensors in cooling and fueling systems): temp delta, cooling flow rate, cooling pump current and pressure delta, fuel lp flow, fuel hp rail, fuel hp relief, fuel lp pressure, fuel hp pressure, fuel lp current, fuel hp current
+# Group 2 (Current and pressure sensors only): cooling pump current, cooling pressure delta, fuel lp pressure, fuel hp pressure, fuel lp current, fuel hp current
+# Group 3 (current sensors only): cooling pump current, fuel lp current, fuel hp current
 def create_sensor_groups():
     sensors = {}
 
-    # Group 1 TODO
-    sensors["s1_g1"] = []
-    sensors["s2_g1"] = []
+    # Group 1
+    sensors["s1_g1"] = ["Fuel System 1  LP 1 ", "Cooling System 1 P 1", "Cooling System 1 P 2", "Cooling System 1 Heater Input Temperature ", "Cooling System 1 Heater Output Temperature", "Fuel System 1 High Pressure Rail", "Cooling System 1 Flow", "Fuel System 1  Injector Flow", "Fuel System 1  Service Flow", "Fuel System 1  HP Relief Flow", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    sensors["s2_g1"] = ["Fuel System 2  LP 1", "Cooling System 2 P 1", "Cooling System 2 P 2", "Cooling System 2  Heater Output Temperature", "Cooling System 2 Heater Input Temperature ", "Fuel System 2  High Pressure Rail", "Fuel System 2  Injector Flow", "Cooling System 2 Flow", "Fuel System 2  Service Flow", "Fuel System 2  HP Relief Flow", "Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    sensors["combined_g1"] = sensors["s1_g1"] + sensors["s2_g1"]
 
     # Group 2
-    sensors["s1_g2"] = []
-    sensors["s2_g2"] = []
+    sensors["s1_g2"] = ["Fuel System 1  LP 1 ", "Cooling System 1 P 1", "Cooling System 1 P 2", "Fuel System 1 High Pressure Rail", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    sensors["s2_g2"] = ["Fuel System 2  LP 1", "Cooling System 2 P 1", "Cooling System 2 P 2", "Fuel System 2  High Pressure Rail","Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    sensors["combined_g2"] = sensors["s1_g2"] + sensors["s2_g2"]
 
     # Group 3
-    sensors["s1_g3"] = []
-    sensors["s2_g3"] = []
+    sensors["s1_g3"] = ["Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    sensors["s2_g3"] = ["Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    sensors["combined_g3"] = sensors["s1_g3"] + sensors["s2_g3"]
 
     return sensors
 
@@ -135,7 +141,7 @@ def get_data(data_dir, sequences_filename, num_iters=1, batch_size=4):
     sensor_to_datasets = {}
 
     for group_id, sensor_group in sensor_groups.items():
-        datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 30, [0.8, 0.1, 0.1], num_iters=num_iters, batch_size=batch_size)
+        datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, [0.8, 0.1, 0.1], num_iters=num_iters, batch_size=batch_size)
         sensor_to_datasets[group_id] = (datasets, dataloaders)
 
     return sensor_to_datasets
@@ -150,19 +156,95 @@ def save_data(sensor_to_datasets, save_dir):
         dir = save_dir + "/" + sensor_group
         os.makedirs(dir, exist_ok=True)
 
-        # Save datasets to dir
-        for dataset in datasets:
-            torch.save(dataset, dir + "/" + "dataset_" + str(dataset) + ".pt")
+        for op_prof in range(1,4):
+            op_dir = dir + "/op_prof_" + str(op_prof)
+            os.makedirs(op_dir, exist_ok=True)
+
+            # Save datasets to dir
+            seq_num = 4
+            for dataset in datasets[op_prof]:
+                torch.save(dataset, op_dir + "/" + "dataset_seq_" + str(seq_num) + ".pt")
+                seq_num += 1
 
 # Performs a 2nd degree polynomial interpolation on the specified dataset
 # Returns the interpolated dataset
-def polynomial_interpolation(dataset, num_points):
-    pass
+def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:list, stdv:dict) -> RULDataset:
+    sensor_data = dataset.sensor_data
+    N, T, S = sensor_data.shape
+
+    interpolated_data = np.zeros((N, num_points, S))
+
+    for i in range(N):
+        for j in range(S):
+            x = np.arange(T)
+            y = sensor_data[i, :, j]
+            f = sp.interpolate.interp1d(x, y, kind="quadratic")
+            x_new = np.linspace(0, T-1, num_points)
+            y_new = f(x_new)
+
+            # Apply noise
+            noise = np.random.normal(0, stdv[sensor_group[j]], num_points)
+            y_new += noise
+
+            interpolated_data[i, :, j] = y_new
+            interpolated_data[i, 0, j] = sensor_data[i, 0, j]
+            interpolated_data[i, -1, j] = sensor_data[i, -1, j]   
+
+    # Don't think I need to adjust the labels
+    return RULDataset(interpolated_data, dataset.rul_labels)
+
+
+# Calculates standard deviation for each sensor in the specified sensor group from the dataset
+# where df is a DataFrame of a run from a failure profile
+def calc_stdv(sensor_group:list, df:pd.DataFrame) -> dict:
+    stdv = {}
+    for sensor in sensor_group:
+        stdv[sensor] = df[sensor]
+
+    return stdv
+
+# Creates a DataFrame from the output processed files of a particular failure profile and operational profile
+def create_df_from_proc_data(dir:str) -> pd.DataFrame:
+    
+    # Flow
+    df_flow = pd.read_csv(dir + "/out_CRIO1_Flow_data_Profile_1_Run_4_Operation_1.csv")
+    flow_std = df_flow.std(axis=0)
+
+    # Main
+    df_main1 = pd.read_csv(dir + "/out_CRIO1_mAin_Profile_1_Run_4_Operation_1.csv")
+    df_main2 = pd.read_csv(dir + "/out_CRIO2_mAin_Profile_1_Run_4_Operation_1.csv")
+    main1_std = df_main1.std(axis=0)
+    main2_std = df_main2.std(axis=0)
+
+    # Vin
+    df_vin1 = pd.read_csv(dir + "/out_CRIO1_Vin_Profile_1_Run_4_Operation_1.csv")
+    df_vin2 = pd.read_csv(dir + "/out_CRIO2_Vin_Profile_1_Run_4_Operation_1.csv")
+    vin1_std = df_vin1.std(axis=0)
+    vin2_std = df_vin2.std(axis=0)
+
+    df_out = pd.concat([flow_std, main1_std, main2_std, vin1_std, vin2_std], axis=0)
+
+    return df_out
+
 
 
 if __name__ == "__main__":
-    data_dict = parse_avg_sensor_data("data/AvgValue_Data", "data/Failure_Profile_Labels/labels.csv")
-    sensor_group = create_sensor_groups()
 
-    datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 4, [0.8, 0.1, 0.1], num_iters=1, batch_size=8)
-    pass
+    data_dir = "data/AvgValue_Data"
+    sequences_filename = "data/Failure_Profile_Labels/labels.csv"
+
+    stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
+
+    data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
+    sensor_groups = create_sensor_groups()
+
+    combined = sensor_groups["combined_g1"]
+    stdv = calc_stdv(combined, stdv_df)
+
+    sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
+    save_data(sensors_to_datasets, "data/processed_data")
+
+    # Interpolate and apply noise
+    # TODO need to test out the polynomial interpolation
+
+    # datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 4, [0.8, 0.1, 0.1], num_iters=1, batch_size=8)
