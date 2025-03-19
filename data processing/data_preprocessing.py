@@ -183,8 +183,9 @@ def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:li
             y_new = f(x_new)
 
             # Apply noise
-            noise = np.random.normal(0, stdv[sensor_group[j]], num_points)
-            y_new += noise
+            # NOTE the standard deviations seem to be extremely large and move away from the spirit of the data. So, for now I will not apply noise. This will be revisited
+            # noise = np.random.normal(0, stdv[sensor_group[j]], num_points)
+            # y_new += noise
 
             interpolated_data[i, :, j] = y_new
             interpolated_data[i, 0, j] = sensor_data[i, 0, j]
@@ -193,6 +194,22 @@ def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:li
     # Don't think I need to adjust the labels
     return RULDataset(interpolated_data, dataset.rul_labels)
 
+# Interpolates and applies noise to all datasets
+# Returns new sensor_to_datasets dict
+def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, num_points:int, stdv:dict) -> dict:
+    out_sensor_to_datasets = {}
+
+    for sensor_group_name, t in sensor_to_datasets.items():
+        datasets, dataloaders = t
+        new_datasets = {}
+        for op_prof in range(1,4):
+            new_datasets[op_prof] = []
+            for dataset in datasets[op_prof]:
+                new_datasets[op_prof].append(polynomial_interpolation(dataset, num_points, sensor_groups[sensor_group_name], stdv))
+
+        out_sensor_to_datasets[sensor_group_name] = (new_datasets, dataloaders)
+
+    return out_sensor_to_datasets
 
 # Calculates standard deviation for each sensor in the specified sensor group from the dataset
 # where df is a DataFrame of a run from a failure profile
@@ -242,9 +259,9 @@ if __name__ == "__main__":
     stdv = calc_stdv(combined, stdv_df)
 
     sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
-    save_data(sensors_to_datasets, "data/processed_data")
+    # save_data(sensors_to_datasets, "data/processed_data/original")
 
     # Interpolate and apply noise
-    # TODO need to test out the polynomial interpolation
-
-    # datasets, dataloaders = create_train_test_val_splits(data_dict, sensor_group, 4, [0.8, 0.1, 0.1], num_iters=1, batch_size=8)
+    num_points = 14
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv)
+    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
