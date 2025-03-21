@@ -15,7 +15,8 @@ class OvercompleteAutoencoder(nn.Module):
             nn.Linear(input_dim, input_dim),
             nn.ReLU(),
             nn.Linear(input_dim, hidden_dim),
-            nn.ReLU()
+            
+            # RELU should be in the decoder so that way the features are unrestricted
         )
         
         # --------------------
@@ -24,6 +25,7 @@ class OvercompleteAutoencoder(nn.Module):
         # Layer 1: 50 -> 21
         # Layer 2: 21 -> 21
         self.decoder = nn.Sequential(
+            nn.ReLU(),
             nn.Linear(hidden_dim, input_dim),
             nn.Sigmoid(), # sigmoid to make it nontrivial for the NN to reconstruct the data accurately
             nn.Linear(input_dim, input_dim),
