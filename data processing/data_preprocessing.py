@@ -337,7 +337,7 @@ def correct_data(data_dir:str, save_loc:str, sensor_group:list):
 
         # Put everything into dataframes for each operational profile and save
         for j in range(1,4):
-            op_dir = save_loc + "/Failure_Profile_" + str(i) + "/Operational_Profile_" + str(j)
+            op_dir = save_loc + "/Failure_Profile_" + str(i)
             os.makedirs(op_dir, exist_ok=True)
 
             # Get other sensors
