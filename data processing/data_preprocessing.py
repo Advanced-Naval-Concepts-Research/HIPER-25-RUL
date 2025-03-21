@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 
 class RULDataset(torch.utils.data.Dataset):
-    def __init__(self, sensor_data, rul_labels, transform=None):
+    def __init__(self, sensor_data, rul_labels, sequence_length=None, transform=None):
         """
         Args:
             sensor_data (array-like): Time-series sensor readings (num_samples, time_steps, sensors).
@@ -20,6 +20,12 @@ class RULDataset(torch.utils.data.Dataset):
         self.sensor_data = sensor_data
         self.rul_labels = rul_labels
         self.transform = transform
+        if sequence_length:
+            self.sequence_length = sequence_length
+
+            # Reshape data to be (num_samples, time_steps, sequence_length, sensors)
+            t_new = sensor_data.shape[1] // self.sequence_length
+            self.sensor_data = sensor_data.reshape(sensor_data.shape[0], t_new, self.sequence_length, sensor_data.shape[2])
 
     def __len__(self):
         # Total number of complete sequences in the dataset
@@ -30,12 +36,11 @@ class RULDataset(torch.utils.data.Dataset):
         sequence = self.sensor_data[idx]
         label = self.rul_labels[idx]
 
-        # Transformation
+        # Apply transformation if specified
         if self.transform:
             sequence = self.transform(sequence)
 
         return torch.tensor(sequence, dtype=torch.float32), torch.tensor(label, dtype=torch.float32)
-
 
 # Reads in the sensor values for each opeartional profile from the specified directory and their associated sequence failures
 # Only parses over labeled data. In this case, labeled data are failures where clogs occur
@@ -168,7 +173,7 @@ def save_data(sensor_to_datasets, save_dir):
 
 # Performs a 2nd degree polynomial interpolation on the specified dataset
 # Returns the interpolated dataset
-def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:list, stdv:dict) -> RULDataset:
+def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:list, stdv:dict, sequence_length:int=None) -> RULDataset:
     sensor_data = dataset.sensor_data
     N, T, S = sensor_data.shape
 
@@ -192,11 +197,11 @@ def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:li
             interpolated_data[i, -1, j] = sensor_data[i, -1, j]   
 
     # Don't think I need to adjust the labels
-    return RULDataset(interpolated_data, dataset.rul_labels)
+    return RULDataset(interpolated_data, dataset.rul_labels, sequence_length)
 
 # Interpolates and applies noise to all datasets
 # Returns new sensor_to_datasets dict
-def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, num_points:int, stdv:dict) -> dict:
+def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, num_points:int, stdv:dict, sequence_length:int=None) -> dict:
     out_sensor_to_datasets = {}
 
     for sensor_group_name, t in sensor_to_datasets.items():
@@ -205,7 +210,7 @@ def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, 
         for op_prof in range(1,4):
             new_datasets[op_prof] = []
             for dataset in datasets[op_prof]:
-                new_datasets[op_prof].append(polynomial_interpolation(dataset, num_points, sensor_groups[sensor_group_name], stdv))
+                new_datasets[op_prof].append(polynomial_interpolation(dataset, num_points, sensor_groups[sensor_group_name], stdv, sequence_length))
 
         out_sensor_to_datasets[sensor_group_name] = (new_datasets, dataloaders)
 
@@ -262,6 +267,6 @@ if __name__ == "__main__":
     # save_data(sensors_to_datasets, "data/processed_data/original")
 
     # Interpolate and apply noise
-    num_points = 14
-    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv)
+    num_points = 30
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv, sequence_length=3)
     save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
