@@ -248,6 +248,121 @@ def create_df_from_proc_data(dir:str) -> pd.DataFrame:
 
     return df_out
 
+# Calculate the tolerance for the voting procedure
+def calc_tolerance(v1, v2):
+    return abs(v1 - v2) / v1
+
+
+
+# Based on the voting procedure outlined in Andy's thesis, determine the overall fueling profile
+# Additionally, fix the temperature sensor data anomalies
+# Calculate specific sensors (delta pressure, delta temp in cooling system)
+def correct_data(data_dir:str, save_loc:str, sensor_group:list):
+
+    # Walk through the directory
+    for i in range(1, 101):
+        fp_dir = data_dir + "/Failure_Profile_" + str(i)
+
+        # Fix temperature anomalies and calc delta temp and delta pressure
+        op_prof_to_dt = {}
+        op_prof_to_dp = {}
+        for j in range(1,4):
+            filename = "AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_" + str(j) + ".csv"
+            fp_df = pd.read_csv(fp_dir + "/" + filename)
+
+            # Fix temperature sensor data anomalies and calc deltas
+            dt1 = []
+            dt2 = []
+            dp1 = []
+            dp2 = []
+            for idx, row in fp_df.iterrows():
+
+                # Calc delta pressure
+                delta_p_1 = row["Cooling System 1 P 1"] - row["Cooling System 1 P 2"]
+                delta_p_2 = row["Cooling System 2 P 1"] - row["Cooling System 2 P 2"]
+                dp1.append(delta_p_1)
+                dp2.append(delta_p_2)
+
+                # Calc delta temp and fix anomalies
+                delta_t_1 = row["Cooling System 1 Heater Output Temperature"] - row["Cooling System 1 Heater Input Temperature "]
+                delta_t_2 = row["Cooling System 2  Heater Output Temperature"] - row["Cooling System 2 Heater Input Temperature "]
+
+                if idx == 0:
+                    dt1.append(delta_t_1)
+                    dt2.append(delta_t_2)
+                    continue
+
+                if delta_t_1 > 10 or delta_t_1 < 0:
+                    delta_t_1 = dt1[-1]
+                if delta_t_2 > 10 or delta_t_2 < 0:
+                    delta_t_2 = dt2[-1]
+
+                dt1.append(delta_t_1)
+                dt2.append(delta_t_2)
+
+            op_prof_to_dt[j] = (dt1, dt2)
+            op_prof_to_dp[j] = (dp1, dp2)
+        
+            
+        # Fix fueling system data anomalies
+        df1 = pd.read_csv(fp_dir + "/AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_1.csv")
+        df2 = pd.read_csv(fp_dir + "/AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_2.csv")
+        df3 = pd.read_csv(fp_dir + "/AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_3.csv")
+
+        dfs = [df1, df2, df3]
+
+        fueling_sensor_list = ["Fuel System 1  LP 1 ", "Fuel System 2  LP 1", "Fuel System 1 High Pressure Rail", "Fuel System 2  High Pressure Rail", "Fuel System 1  Injector Pump ", "Fuel System 2  Injector Pump ", "Fuel System 1  Service Pump ", "Fuel System 2  Service Pump ", "Fuel System 1  HP Relief Flow", "Fuel System 2  HP Relief Flow", "Fuel System 1  Injector Flow", "Fuel System 2  Injector Flow", "Fuel System 1  Service Flow", "Fuel System 2  Service Flow"]
+        out_fuel_df = pd.DataFrame(columns=fueling_sensor_list)
+        fuel_data_dict = {sensor:[] for sensor in fueling_sensor_list}
+        for idx in range(len(df1)):
+            
+            for sensor in fueling_sensor_list:
+            
+                # Get each value from df
+                val1 = df1.iloc[idx][sensor]
+                val2 = df2.iloc[idx][sensor]
+                val3 = df3.iloc[idx][sensor]
+
+                vals = [val1, val2, val3]
+
+                # Voting procedure
+                j = np.argmin([calc_tolerance(val1, val2), calc_tolerance(val1, val3), calc_tolerance(val2, val3)])
+                if j == 2:
+                    fuel_data_dict[sensor].append(vals[1])
+                else:
+                    fuel_data_dict[sensor].append(vals[0])
+
+        for sensor in fueling_sensor_list:
+            out_fuel_df[sensor] = fuel_data_dict[sensor]
+
+        # Put everything into dataframes for each operational profile and save
+        for j in range(1,4):
+            op_dir = save_loc + "/Failure_Profile_" + str(i) + "/Operational_Profile_" + str(j)
+            os.makedirs(op_dir, exist_ok=True)
+
+            # Get other sensors
+            columns = fueling_sensor_list + ["Cooling System 1 Delta Temp", "Cooling System 2 Delta Temp", "Cooling System 1 Delta Pressure", "Cooling System 2 Delta Pressure"] + ["Cooling System 1 Flow", "Cooling System 2 Flow", "Cooling System 1 Service Pump ", "Cooling System 2 Service Pump "]
+            out_df = pd.DataFrame(columns=columns)
+
+            # Fueling data
+            for sensor in fueling_sensor_list:
+                out_df[sensor] = out_fuel_df[sensor]
+
+            # Delta temp and delta pressure
+            out_df["Cooling System 1 Delta Temp"] = op_prof_to_dt[j][0]
+            out_df["Cooling System 2 Delta Temp"] = op_prof_to_dt[j][1]
+            out_df["Cooling System 1 Delta Pressure"] = op_prof_to_dp[j][0]
+            out_df["Cooling System 2 Delta Pressure"] = op_prof_to_dp[j][1]
+
+            # Rest of cooling system data
+            out_df["Cooling System 1 Flow"] = dfs[j-1]["Cooling System 1 Flow"]
+            out_df["Cooling System 2 Flow"] = dfs[j-1]["Cooling System 2 Flow"]
+            out_df["Cooling System 1 Service Pump "] = dfs[j-1]["Cooling System 1 Service Pump "]
+            out_df["Cooling System 2 Service Pump "] = dfs[j-1]["Cooling System 2 Service Pump "]
+
+            # Save df
+            out_df.to_csv(op_dir + "/AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_" + str(j) + ".csv", index=False)
+
 
 
 if __name__ == "__main__":
@@ -255,18 +370,21 @@ if __name__ == "__main__":
     data_dir = "data/AvgValue_Data"
     sequences_filename = "data/Failure_Profile_Labels/labels.csv"
 
-    stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
+    # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
-    data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
+    # data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
     sensor_groups = create_sensor_groups()
 
     combined = sensor_groups["combined_g1"]
-    stdv = calc_stdv(combined, stdv_df)
+    # stdv = calc_stdv(combined, stdv_df)
 
-    sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
+    # Fix data
+    correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
+
+    # sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
     # save_data(sensors_to_datasets, "data/processed_data/original")
 
     # Interpolate and apply noise
-    num_points = 30
-    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv, sequence_length=3)
-    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
+    # num_points = 30
+    # sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv, sequence_length=3)
+    # save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
