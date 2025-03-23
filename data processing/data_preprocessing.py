@@ -250,7 +250,7 @@ def create_df_from_proc_data(dir:str) -> pd.DataFrame:
 
 # Calculate the tolerance for the voting procedure
 def calc_tolerance(v1, v2):
-    return abs(v1 - v2) / v1
+    return abs(v1 - v2) / abs(v1)
 
 
 
