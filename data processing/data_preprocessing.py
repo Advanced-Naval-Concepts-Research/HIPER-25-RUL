@@ -121,13 +121,16 @@ def create_sensor_groups():
     sensors = {}
 
     # Group 1
-    sensors["s1_g1"] = ["Fuel System 1  LP 1 ", "Cooling System 1 P 1", "Cooling System 1 P 2", "Cooling System 1 Heater Input Temperature ", "Cooling System 1 Heater Output Temperature", "Fuel System 1 High Pressure Rail", "Cooling System 1 Flow", "Fuel System 1  Injector Flow", "Fuel System 1  Service Flow", "Fuel System 1  HP Relief Flow", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
-    sensors["s2_g1"] = ["Fuel System 2  LP 1", "Cooling System 2 P 1", "Cooling System 2 P 2", "Cooling System 2  Heater Output Temperature", "Cooling System 2 Heater Input Temperature ", "Fuel System 2  High Pressure Rail", "Fuel System 2  Injector Flow", "Cooling System 2 Flow", "Fuel System 2  Service Flow", "Fuel System 2  HP Relief Flow", "Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    # sensors["s1_g1"] = ["Fuel System 1  LP 1 ", "Cooling System 1 P 1", "Cooling System 1 P 2", "Cooling System 1 Heater Input Temperature ", "Cooling System 1 Heater Output Temperature", "Fuel System 1 High Pressure Rail", "Cooling System 1 Flow", "Fuel System 1  Injector Flow", "Fuel System 1  Service Flow", "Fuel System 1  HP Relief Flow", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    # sensors["s2_g1"] = ["Fuel System 2  LP 1", "Cooling System 2 P 1", "Cooling System 2 P 2", "Cooling System 2  Heater Output Temperature", "Cooling System 2 Heater Input Temperature ", "Fuel System 2  High Pressure Rail", "Fuel System 2  Injector Flow", "Cooling System 2 Flow", "Fuel System 2  Service Flow", "Fuel System 2  HP Relief Flow", "Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    sensors["s1_g1"] = ["Fuel System 1  LP 1 ", "Cooling System 1 Delta Pressure", "Cooling System 1 Delta Temp", "Fuel System 1 High Pressure Rail", "Cooling System 1 Flow", "Fuel System 1  Injector Flow", "Fuel System 1  Service Flow", "Fuel System 1  HP Relief Flow", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    sensors["s2_g1"] = ["Fuel System 2  LP 1", "Cooling System 2 Delta Pressure", "Cooling System 2 Delta Temp", "Fuel System 2  High Pressure Rail", "Fuel System 2  Injector Flow", "Cooling System 2 Flow", "Fuel System 2  Service Flow", "Fuel System 2  HP Relief Flow", "Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    
     sensors["combined_g1"] = sensors["s1_g1"] + sensors["s2_g1"]
 
     # Group 2
-    sensors["s1_g2"] = ["Fuel System 1  LP 1 ", "Cooling System 1 P 1", "Cooling System 1 P 2", "Fuel System 1 High Pressure Rail", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
-    sensors["s2_g2"] = ["Fuel System 2  LP 1", "Cooling System 2 P 1", "Cooling System 2 P 2", "Fuel System 2  High Pressure Rail","Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
+    sensors["s1_g2"] = ["Fuel System 1  LP 1 ", "Cooling System 1 Delta Pressure", "Fuel System 1 High Pressure Rail", "Fuel System 1  Injector Pump ", "Fuel System 1  Service Pump ", "Cooling System 1 Service Pump "]
+    sensors["s2_g2"] = ["Fuel System 2  LP 1", "Cooling System 2 Delta Pressure", "Fuel System 2  High Pressure Rail","Fuel System 2  Injector Pump ", "Fuel System 2  Service Pump ", "Cooling System 2 Service Pump "]
     sensors["combined_g2"] = sensors["s1_g2"] + sensors["s2_g2"]
 
     # Group 3
@@ -201,7 +204,7 @@ def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:li
 
 # Interpolates and applies noise to all datasets
 # Returns new sensor_to_datasets dict
-def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, num_points:int, stdv:dict, sequence_length:int=None) -> dict:
+def apply_polynomial_interpolation(sensor_to_datasets:dict, sensor_groups:dict, num_points:int, stdv:dict=None, sequence_length:int=None) -> dict:
     out_sensor_to_datasets = {}
 
     for sensor_group_name, t in sensor_to_datasets.items():
@@ -367,8 +370,8 @@ def correct_data(data_dir:str, save_loc:str, sensor_group:list):
 
 if __name__ == "__main__":
 
-    data_dir = "data/AvgValue_Data"
-    sequences_filename = "data/Failure_Profile_Labels/labels.csv"
+    data_dir = "data/Corrected_AvgValue_Data"
+    sequences_filename = "data/Failure_Profile_Labels/labels_combined.csv"
 
     # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
@@ -377,14 +380,16 @@ if __name__ == "__main__":
 
     combined = sensor_groups["combined_g1"]
     # stdv = calc_stdv(combined, stdv_df)
+    # stdv = calc_stdv(combined, stdv_df)
+
 
     # Fix data
-    correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
+    # correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
 
-    # sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
+    sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
     # save_data(sensors_to_datasets, "data/processed_data/original")
 
     # Interpolate and apply noise
-    # num_points = 30
-    # sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, stdv, sequence_length=3)
-    # save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
+    num_points = 30
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=3)
+    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
