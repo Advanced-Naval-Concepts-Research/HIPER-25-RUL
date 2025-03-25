@@ -75,11 +75,14 @@ def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_ra
      optimizer = optim.Adam(model.parameters(), lr=learning_rate) # Paper didnt specify, will use most common
      # Training loop
      
+     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+     model.to(device)
+     
      for epoch in range(num_epochs):
          total_loss = 0.0
          
          for batch in dataset:
-             data_batch = batch[0]  # batch is (data, )
+             data_batch = batch[0].to(device)  # batch is (data, )
              
              # Forward pass: encode -> decode
              reconstructed = model(data_batch)
