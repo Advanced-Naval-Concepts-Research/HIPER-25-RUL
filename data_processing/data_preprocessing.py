@@ -55,6 +55,8 @@ def parse_avg_sensor_data(dir:str, seq_failures_filename:str) -> dict:
     for idx, row in seq_failures.iterrows():
         i = row["Failure Profile"]
         fp_dir = dir + "/Failure_Profile_" + str(i)
+        if row["Profile A"] == -1 or row["Profile B"] == -1 or row["Profile C"] == -1:
+            continue
 
         # Read in failure profiles for each operational profile
         for j in range(1,4):
@@ -390,6 +392,6 @@ if __name__ == "__main__":
     # save_data(sensors_to_datasets, "data/processed_data/original")
 
     # Interpolate and apply noise
-    num_points = 30
-    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=3)
+    num_points = 14
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=None)
     save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
