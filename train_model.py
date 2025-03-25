@@ -69,3 +69,31 @@ def train_model_start(model:nn.Module, params:dict, dataset:DataLoader):
     # Save weights to file
     # pickle.dump(weights, open("models/model_weights/" + model.get_name() + "/" + model.get_name() + "_weights.pkl", "wb"))
 
+
+def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_rate:float = 1e-3):
+     criterion = nn.MSELoss()  # Paper didnt specify, will use most common
+     optimizer = optim.Adam(model.parameters(), lr=learning_rate) # Paper didnt specify, will use most common
+     # Training loop
+     
+     for epoch in range(num_epochs):
+         total_loss = 0.0
+         
+         for batch in dataset:
+             data_batch = batch[0]  # batch is (data, )
+             
+             # Forward pass: encode -> decode
+             reconstructed = model(data_batch)
+             
+             # Compute reconstruction loss
+             loss = criterion(reconstructed, data_batch)
+             
+             # Backprop
+             optimizer.zero_grad()
+             loss.backward()
+             optimizer.step()
+             
+             total_loss += loss.item()
+         
+         avg_loss = total_loss / len(dataset)
+         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+
