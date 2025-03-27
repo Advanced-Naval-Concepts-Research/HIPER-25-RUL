@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import pickle
+import matplotlib.pyplot as plt
 
 import sys
 
@@ -22,25 +23,68 @@ Params dictionary:
 '''
 
 
-def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None):
-    
+def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, val_dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None, device="cpu"):
+
+    # Training loop
+    model_weights = []
+    val_losses = []
+    train_losses = []
     for epoch in tqdm(range(num_epochs)):
         running_loss = 0.0
-
+        model.train()
         for sequences, targets in dataset:
+            sequences, targets = sequences.to(device), targets.to(device)
             optimizer.zero_grad()
             outputs = model(sequences)
+            outputs = outputs.reshape([-1])
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
+
         
         avg_loss = running_loss / len(dataset)
-        print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        # print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        train_losses.append(running_loss)
 
         if scheduler is not None:
             scheduler.step()
 
+        model_weights.append(model.state_dict())
+
+        # Validation
+        val_loss = 0.0
+        correct = 0
+        total = 0
+        model.eval()
+        with torch.no_grad():
+            for sequences, targets in val_dataset:
+                sequences, targets = sequences.to(device), targets.to(device)
+                outputs = model(sequences)
+                outputs = outputs.reshape([-1])
+                loss = criterion(outputs, targets)
+                val_loss += loss.item()
+
+                predicted = torch.round(outputs).int()
+                total += targets.size(0)
+                correct += (predicted == targets).sum().item()
+
+        val_losses.append(val_loss)
+        # print(f"Validation Loss: {val_loss}, Accuracy: {correct/total}")
+
+    # Return model weights that minimize validation loss
+    min_val_loss = min(val_losses)
+    min_val_loss_idx = val_losses.index(min_val_loss)
+    model.load_state_dict(model_weights[min_val_loss_idx])
+
+    print(min_val_loss, min_val_loss_idx)
+    plt.plot(val_losses, label="val")
+    plt.plot(train_losses, label="train")
+    plt.legend()
+    # plt.show()
+
+    print(predicted, outputs, targets)
+    print(correct, total)
     return model.state_dict()
 
 
@@ -50,20 +94,20 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
 #   model: The model to train
 #   params: A dictionary containing the parameters for training
 # Returns: Trained model weights
-def train_model_start(model:nn.Module, params:dict, dataset:DataLoader):
+# def train_model_start(model:nn.Module, params:dict, dataset:DataLoader):
 
-    # Unpack parameters
-    criterion = params["criterion"]
-    optimizer = params["optimizer"]
-    scheduler = params["scheduler"]
-    num_epochs = params["num_epochs"]
+#     # Unpack parameters
+#     criterion = params["criterion"]
+#     optimizer = params["optimizer"]
+#     scheduler = params["scheduler"]
+#     num_epochs = params["num_epochs"]
 
-    # Set model to training mode
-    model.train(True)
+#     # Set model to training mode
+#     model.train(True)
     
-    weights = train_model(model, criterion, optimizer, dataset, num_epochs, scheduler)
+#     weights = train_model(model, criterion, optimizer, dataset, num_epochs, scheduler)
 
-    return weights
+#     return weights
 
     # WILL ACTUALLY SAVE WEIGHTS IN OTHER FILES
     # Save weights to file

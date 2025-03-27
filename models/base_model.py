@@ -1,6 +1,8 @@
 # RUL Model from Stephen A. Olson's Thesis
 # Taken from Table 5.20 in his thesis
 
+# TODO what does Andy do with Z score normalization?
+
 import torch
 import torch.nn as nn
 
@@ -17,7 +19,9 @@ class BaseRULModel(nn.Module):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         
-        out, _ = self.lstm(x, (h0, c0))
+        out, (hn, cn) = self.lstm(x, (h0, c0))
+        # out, (hn, cn) = self.lstm(x) Not sure which is correct. Both seem to work
+
         out = self.fc(out[:, -1, :])
         return out
     
