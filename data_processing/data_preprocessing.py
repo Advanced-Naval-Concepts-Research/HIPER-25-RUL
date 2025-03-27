@@ -1,6 +1,7 @@
 # Prep datasets for training and testing
 # Create train, test, validation splits of the data for specified groupings of sensors
 
+import pickle as pkl
 import pandas as pd
 import numpy as np
 import scipy as sp
@@ -368,6 +369,41 @@ def correct_data(data_dir:str, save_loc:str, sensor_group:list):
             # Save df
             out_df.to_csv(op_dir + "/AverageValueData_Failure_Profile_" + str(i) + "_Operational_Profile_" + str(j) + ".csv", index=False)
 
+def gen_train_test_val_splits(sequences_filename, op_prof, train=0.8, val=0.1):
+    # Create the 50 RTF datasets for each operational profile to keep them consistent across all models
+
+    # Load sequences file
+    sequences = pd.read_csv(sequences_filename)
+    fps = sequences["Failure Profile"].tolist()
+
+    num_train = int(train * len(fps))
+    num_val = int(val * len(fps))
+    num_test = len(fps) - num_train - num_val
+
+    # Create train, test, validation splits
+    # Each will be a dict of {type:list of failure profiles}
+    for i in range(1, 51):
+
+        # Shuffle the failure profiles
+        np.random.shuffle(fps)
+
+        out = {"train":[], "val":[], "test":[]}
+
+        train_fps = fps[:num_train]
+        val_fps = fps[num_train:num_train+num_val]
+        test_fps = fps[num_train+num_val:]
+
+        out["train"] = train_fps
+        out["val"] = val_fps
+        out["test"] = test_fps
+
+        # Save the splits
+        save_dir = "data/train_test_val_sets/op_prof_" + str(op_prof) + "/"
+        os.makedirs(save_dir, exist_ok=True)
+        with open(save_dir + "split_" + str(i) + ".pkl", "wb") as f:
+            pkl.dump(out, f)
+
+
 
 
 if __name__ == "__main__":
@@ -375,23 +411,26 @@ if __name__ == "__main__":
     data_dir = "data/Corrected_AvgValue_Data"
     sequences_filename = "data/Failure_Profile_Labels/labels_combined.csv"
 
+    # Train test val splits
+    gen_train_test_val_splits(sequences_filename, 3, 0.7, 0.15)
+
     # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
     # data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
-    sensor_groups = create_sensor_groups()
+    # sensor_groups = create_sensor_groups()
 
-    combined = sensor_groups["combined_g1"]
-    # stdv = calc_stdv(combined, stdv_df)
-    # stdv = calc_stdv(combined, stdv_df)
+    # combined = sensor_groups["combined_g1"]
+    # # stdv = calc_stdv(combined, stdv_df)
+    # # stdv = calc_stdv(combined, stdv_df)
 
 
-    # Fix data
-    # correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
+    # # Fix data
+    # # correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
 
-    sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
-    # save_data(sensors_to_datasets, "data/processed_data/original")
+    # sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
+    # # save_data(sensors_to_datasets, "data/processed_data/original")
 
-    # Interpolate and apply noise
-    num_points = 14
-    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=None)
-    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
+    # # Interpolate and apply noise
+    # num_points = 14
+    # sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=None)
+    # save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
