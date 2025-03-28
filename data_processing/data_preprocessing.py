@@ -372,13 +372,23 @@ def correct_data(data_dir:str, save_loc:str, sensor_group:list):
 def gen_train_test_val_splits(sequences_filename, op_prof, train=0.8, val=0.1):
     # Create the 50 RTF datasets for each operational profile to keep them consistent across all models
 
-    # Load sequences file
+    # Load sequences file and select only non-leak failure profiles
     sequences = pd.read_csv(sequences_filename)
-    fps = sequences["Failure Profile"].tolist()
+    fps = []
+    for idx, row in sequences.iterrows():
+        if row["Profile A"] == -1 or row["Profile B"] == -1 or row["Profile C"] == -1:
+            continue
+        fps.append(int(row["Failure Profile"]))
 
     num_train = int(train * len(fps))
     num_val = int(val * len(fps))
     num_test = len(fps) - num_train - num_val
+
+    # Specify testing set first
+    np.random.shuffle(fps)
+    test_fps = fps[:num_test]
+
+    fps = fps[num_test:]
 
     # Create train, test, validation splits
     # Each will be a dict of {type:list of failure profiles}
@@ -391,14 +401,13 @@ def gen_train_test_val_splits(sequences_filename, op_prof, train=0.8, val=0.1):
 
         train_fps = fps[:num_train]
         val_fps = fps[num_train:num_train+num_val]
-        test_fps = fps[num_train+num_val:]
 
         out["train"] = train_fps
         out["val"] = val_fps
         out["test"] = test_fps
 
         # Save the splits
-        save_dir = "data/train_test_val_sets/op_prof_" + str(op_prof) + "/"
+        save_dir = "data/train_test_val_sets/partition_" + str(op_prof) + "/"
         os.makedirs(save_dir, exist_ok=True)
         with open(save_dir + "split_" + str(i) + ".pkl", "wb") as f:
             pkl.dump(out, f)
@@ -412,7 +421,7 @@ if __name__ == "__main__":
     sequences_filename = "data/Failure_Profile_Labels/labels_combined.csv"
 
     # Train test val splits
-    gen_train_test_val_splits(sequences_filename, 3, 0.7, 0.15)
+    gen_train_test_val_splits(sequences_filename, "A", 0.8, 0.1)
 
     # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
