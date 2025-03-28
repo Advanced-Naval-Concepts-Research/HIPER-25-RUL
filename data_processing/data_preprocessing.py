@@ -421,12 +421,12 @@ if __name__ == "__main__":
     sequences_filename = "data/Failure_Profile_Labels/labels_combined.csv"
 
     # Train test val splits
-    gen_train_test_val_splits(sequences_filename, "A", 0.8, 0.1)
+    # gen_train_test_val_splits(sequences_filename, "A", 0.8, 0.1)
 
     # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
-    # data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
-    # sensor_groups = create_sensor_groups()
+    data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
+    sensor_groups = create_sensor_groups()
 
     # combined = sensor_groups["combined_g1"]
     # # stdv = calc_stdv(combined, stdv_df)
@@ -436,10 +436,10 @@ if __name__ == "__main__":
     # # Fix data
     # # correct_data(data_dir, "data/Corrected_AvgValue_Data", combined)
 
-    # sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
-    # # save_data(sensors_to_datasets, "data/processed_data/original")
+    sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
+    # save_data(sensors_to_datasets, "data/processed_data/original")
 
-    # # Interpolate and apply noise
-    # num_points = 14
-    # sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=None)
-    # save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
+    # Interpolate and apply noise
+    num_points = 30
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=3)
+    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
