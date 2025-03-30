@@ -29,7 +29,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     model_weights = []
     val_losses = []
     train_losses = []
-    for epoch in tqdm(range(num_epochs)):
+    for epoch in range(num_epochs):
         running_loss = 0.0
         model.train()
         for sequences, targets in dataset:
@@ -77,14 +77,11 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     min_val_loss_idx = val_losses.index(min_val_loss)
     model.load_state_dict(model_weights[min_val_loss_idx])
 
-    print(min_val_loss, min_val_loss_idx)
-    plt.plot(val_losses, label="val")
-    plt.plot(train_losses, label="train")
-    plt.legend()
+    # print(min_val_loss, min_val_loss_idx)
+    # plt.plot(val_losses, label="val")
+    # plt.plot(train_losses, label="train")
+    # plt.legend()
     # plt.show()
-
-    print(predicted, outputs, targets)
-    print(correct, total)
     return model.state_dict()
 
 

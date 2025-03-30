@@ -7,7 +7,7 @@ class LSTMCNNModel1(nn.Module):
         super(LSTMCNNModel1, self).__init__()
     
         # LSTM component
-        self.lstm1 = nn.LSTM(input_size, lstm_hidden_size1, batch_first=True)  # First LSTM layer
+        self.lstm1 = nn.LSTM(input_size * 3, lstm_hidden_size1, batch_first=True)  # First LSTM layer
         
         # this LSTM is the one the glues everything along with fc layer
         self.lstm2 = nn.LSTM(lstm_hidden_size1, lstm_out_size2, batch_first=True) 
@@ -34,12 +34,12 @@ class LSTMCNNModel1(nn.Module):
         #x Shape is (N, T, 3, 14)
         N = x.shape[0]
         T = x.shape[1]
-        x1 = x.copy()
+        x1 = x.detach().clone()
         # branch 1 (first LSTM): 
             # flatten out the 2D data of the timestep
             # run it into LSTM1
             # get its output lstm_out
-        lsmtout = x1.reshape(x1.shape[0],x1.shape[1], -1)
+        lstmout = x1.reshape(x1.shape[0],x1.shape[1], -1)
         lstmout = self.lstm1(lstmout)
         # branch 2 (CNN)
             # convolve once
@@ -52,7 +52,7 @@ class LSTMCNNModel1(nn.Module):
         #unsqueeze(1) to allow num channels
         cnnout = self.pool(cnnout)
         #flatten
-        cnnout = self.reshape(N, T, -1)
+        cnnout = cnnout.reshape(N, T, -1)
         
         assert lstmout.shape == cnnout.shape, "Shapes dont match in CNNLSTMDAG"
         

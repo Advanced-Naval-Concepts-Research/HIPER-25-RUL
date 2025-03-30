@@ -27,7 +27,7 @@ class RULDataset(torch.utils.data.Dataset):
             # Reshape data to be (num_samples, time_steps, sequence_length, sensors)
             t_new = sensor_data.shape[1] // self.sequence_length
             self.sensor_data = sensor_data.reshape(sensor_data.shape[0], t_new, self.sequence_length, sensor_data.shape[2])
-
+        
     def __len__(self):
         # Total number of complete sequences in the dataset
         return len(self.sensor_data)
