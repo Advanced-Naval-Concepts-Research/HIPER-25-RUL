@@ -14,9 +14,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data import random_split, Subset
 
-from train_model import train_model as train_model_func
+from train_model import train_model as train_model_func1
+from train_model import train_encoder
 from test_model import test_model as test_model_func
-
+from models.overcomplete_autoencoder import OvercompleteAutoencoder as Auto
 from data_processing.data_preprocessing import RULDataset as RULDataset
 from data_processing.data_preprocessing import create_sensor_groups
 
@@ -97,7 +98,7 @@ def map_fp_to_idx():
     return fp_to_idx
 
 def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
-    # Functiont o control training
+    # Functiont to control training
     # Takes in a model, and hyperparameters
     # Creates necessary objects and trains model
     # For each sequence
@@ -127,10 +128,13 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                     elif model_name == "LSTMCNN":
                         dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30)
                     elif model_name == "LSTMCNNAuto":
+                        # currently this is the wrong dataset
                         dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
                     elif model_name == "LSTM":
                         # TODO
                         pass
+                    elif model_name == "Auto":
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
 
                     model = None
                     if model_name == "Base":
@@ -143,6 +147,9 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                         # model = LSTM(len(sensors))
                         pass
                         # TODO add LSTM model
+                    elif model_name =="Auto":
+                        # from len(sensors) features to 50-dim features
+                        model = Auto(len(sensors), 50)
                     else:
                         raise ValueError("Invalid model name")
                     
@@ -172,6 +179,15 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                     os.makedirs(dir, exist_ok=True)
                     torch.save(model_weights, dir + "set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt")
 
+# function to divert which trainer to use
+def train_model_func(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, val_dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None, device="cpu"):
+    if model.get_name() == "Auto":
+        #train the autoencoder differently
+        # optimizers and num_epochs and stuff hard coded in this func.
+        train_encoder(model, dataset)
+    else:
+        #train other models
+        train_model_func1(model, criterion, optimizer, dataset, val_dataset, num_epochs, scheduler, device)
 
 def test_model(model_name, hyperparameters:dict, sensor_groups:list):
     # Function to control testing
@@ -312,23 +328,20 @@ if __name__ == "__main__":
     # models = ["Base", "LSTMCNN", "LSTMCNNAuto"]
     # models = ["Base"]
     models = ["LSTMCNN"]
-    if args.model == "AUTO":
-        # train autoencoder
-        print("TODO")
-    else:
-        model = list(args.model)
+    models = list(args.model)
 
-        # Sensor groups
-        sensor_groups = create_sensor_groups()
-        sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
+    # Sensor groups
+    sensor_groups = create_sensor_groups()
+    sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
 
-        # Hyperparameters
-        hyperparameters = setup_hyperparameters_base()
+    # Hyperparameters
+    hyperparameters = setup_hyperparameters_base()
 
-        for model in models:
-            train_model(model, hyperparameters, sensor_groups)
+    for model in models:
+        train_model(model, hyperparameters, sensor_groups)
+        if model != "Auto":
             test_model(model, hyperparameters, sensor_groups)
-        
-        # TODO add testing and statistics production
-        # TODO add hyperparameter optimization
-        # TODO add saving of statistics
+    
+    # TODO add testing and statistics production
+    # TODO add hyperparameter optimization
+    # TODO add saving of statistics

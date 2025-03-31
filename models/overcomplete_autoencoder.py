@@ -37,3 +37,6 @@ class OvercompleteAutoencoder(nn.Module):
         # Decode (reconstruct) back to original dimension
         reconstructed = self.decoder(latent)
         return reconstructed
+    
+    def get_name(self):
+        return "Auto"
