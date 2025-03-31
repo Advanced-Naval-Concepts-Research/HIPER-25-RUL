@@ -151,7 +151,7 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                         # from len(sensors) features to 50-dim features
                         model = Auto(len(sensors), 50)
                     else:
-                        raise ValueError("Invalid model name")
+                        raise ValueError(f"Invalid model name:{model_name}")
                     
                     # Move model to device
                     model.to(device)
@@ -323,13 +323,14 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, required=True, choices=["Base", "LSTMCNN", "LSTMCNNAuto", "Auto"], help="Model name")
     args = parser.parse_args()
     print("Using device:", device)
-
+    
     # Models to train
     # models = ["Base", "LSTMCNN", "LSTMCNNAuto"]
     # models = ["Base"]
     models = ["LSTMCNN"]
-    models = list(args.model)
-
+    models = []
+    models.append(str(args.model))
+   
     # Sensor groups
     sensor_groups = create_sensor_groups()
     sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}

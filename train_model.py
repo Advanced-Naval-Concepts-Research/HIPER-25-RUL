@@ -123,8 +123,8 @@ def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_ra
          total_loss = 0.0
          
          for batch in dataset:
-             data_batch = batch[0].to(device)  # batch is (data, )
-             print(data_batch)
+             data_batch = batch[0].reshape(batch[0].shape[0]* batch[0].shape[1], -1).to(device)  # batch is (data, )
+             print(data_batch.shape)
              assert False #TODO reshape to train encoder on right dimension
              # Forward pass: encode -> decode
              reconstructed = model(data_batch)
