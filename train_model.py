@@ -124,8 +124,8 @@ def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_ra
          
          for batch in dataset:
              data_batch = batch[0].reshape(batch[0].shape[0]* batch[0].shape[1], -1).to(device)  # batch is (data, )
-             print(data_batch.shape)
-             assert False #TODO reshape to train encoder on right dimension
+             #print(data_batch.shape)
+             #assert False #TODO reshape to train encoder on right dimension
              # Forward pass: encode -> decode
              reconstructed = model(data_batch)
              
@@ -140,5 +140,5 @@ def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_ra
              total_loss += loss.item()
          
          avg_loss = total_loss / len(dataset)
-         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+         #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
      return model.state_dict()
