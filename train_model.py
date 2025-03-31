@@ -44,7 +44,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
 
         
         avg_loss = running_loss / len(dataset)
-        # print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
 
         if scheduler is not None:
@@ -70,7 +70,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
                 correct += (predicted == targets).sum().item()
 
         val_losses.append(val_loss)
-        # print(f"Validation Loss: {val_loss}, Accuracy: {correct/total}")
+        print(f"Validation Loss: {val_loss}, Accuracy: {correct/total}")
 
     # Return model weights that minimize validation loss
     min_val_loss = min(val_losses)

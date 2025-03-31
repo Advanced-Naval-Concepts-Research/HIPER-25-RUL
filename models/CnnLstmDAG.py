@@ -3,10 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class LSTMCNNModel1(nn.Module):
-    def __init__(self, input_size:int, lstm_hidden_size1:int=21, lstm_out_size2:int = 10):
+    def __init__(self, input_size:int, lstm_out_size2:int = 10):
         super(LSTMCNNModel1, self).__init__()
     
+        # data dim is (3, input_size)
+        # after conv it is (3, 2, input_size)
+        # granting us a final result after pooling (3,1,floor(input_size/2))
         # LSTM component
+        lstm_hidden_size1 = 3 * int(input_size/2)
         self.lstm1 = nn.LSTM(input_size * 3, lstm_hidden_size1, batch_first=True)  # First LSTM layer
         
         # this LSTM is the one the glues everything along with fc layer
@@ -21,8 +25,8 @@ class LSTMCNNModel1(nn.Module):
         self.conv1 = nn.Conv2d(
             in_channels=1, # data is 2D at the start
             out_channels=3, 
-            kernel_size=(3,2), 
-            padding=(1,0)  # padding vertically
+            kernel_size=(2,3), 
+            padding=(0,1)  # padding vertically
         )
         
         #TODO PARAMS
@@ -40,24 +44,26 @@ class LSTMCNNModel1(nn.Module):
             # run it into LSTM1
             # get its output lstm_out
         lstmout = x1.reshape(x1.shape[0],x1.shape[1], -1)
-        lstmout = self.lstm1(lstmout)
+        lstmout = self.lstm1(lstmout)[0]
+       
+       
         # branch 2 (CNN)
             # convolve once
             # pool
             # get its output CNN_out
         # from here, dims of lstm_out and CNN_out should match. We will add their results
-        
-        x = x.reshape(x.shape[0]*x.shape[1], x.shape[2], x.shape[3])
-        cnnout =  self.conv1(x.unsqueeze(1))
+       
+        xx = x.reshape(x.shape[0]*x.shape[1], x.shape[2], x.shape[3])
+        xx = xx.unsqueeze(1)
+        cnnout =  self.conv1(xx)
         #unsqueeze(1) to allow num channels
         cnnout = self.pool(cnnout)
         #flatten
         cnnout = cnnout.reshape(N, T, -1)
-        
-        assert lstmout.shape == cnnout.shape, "Shapes dont match in CNNLSTMDAG"
+        assert lstmout.shape == cnnout.shape, f"Shapes dont match in CNNLSTMDAG x:{x.shape} lstm:{lstmout.shape}, cnn:{cnnout.shape}"
         
         # then, throw lstm_out + CNN_out (elementwise addition) into 2nd LSTM
-        out = self.lstm2(lstmout + cnnout)
+        out = self.lstm2(lstmout + cnnout)[0]
         # grab last timestep
         out = out[:,-1,:]
         

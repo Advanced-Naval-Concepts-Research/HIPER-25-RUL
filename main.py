@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import KFold
-
+import argparse
 from tqdm import tqdm
 
 import torch
@@ -302,25 +302,33 @@ if __name__ == "__main__":
     #             Train model
     #             Test model
     #             Save statistics
-
+    parser = argparse.ArgumentParser(description="Train and Test RUL Models")
+    parser.add_argument("--mode", choices=["train", "test"], required=True, help="Mode: train or test. Right now the script just trains and this is ignored")
+    parser.add_argument("--model", type=str, required=True, choices=["Base", "LSTMCNN", "LSTMCNNAuto", "Auto"], help="Model name")
+    args = parser.parse_args()
     print("Using device:", device)
 
     # Models to train
     # models = ["Base", "LSTMCNN", "LSTMCNNAuto"]
     # models = ["Base"]
     models = ["LSTMCNN"]
+    if args.model == "AUTO":
+        # train autoencoder
+        print("TODO")
+    else:
+        model = list(args.model)
 
-    # Sensor groups
-    sensor_groups = create_sensor_groups()
-    sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
+        # Sensor groups
+        sensor_groups = create_sensor_groups()
+        sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
 
-    # Hyperparameters
-    hyperparameters = setup_hyperparameters_base()
+        # Hyperparameters
+        hyperparameters = setup_hyperparameters_base()
 
-    for model in models:
-        train_model(model, hyperparameters, sensor_groups)
-        test_model(model, hyperparameters, sensor_groups)
-    
-    # TODO add testing and statistics production
-    # TODO add hyperparameter optimization
-    # TODO add saving of statistics
+        for model in models:
+            train_model(model, hyperparameters, sensor_groups)
+            test_model(model, hyperparameters, sensor_groups)
+        
+        # TODO add testing and statistics production
+        # TODO add hyperparameter optimization
+        # TODO add saving of statistics

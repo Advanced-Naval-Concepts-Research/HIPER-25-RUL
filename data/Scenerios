@@ -1,0 +1,11 @@
+Just a text file to remind which group of sensors we want to use.
+
+Scenerio 1:
+
+
+Scenerio 2:
+
+
+Scenerio 3:
+
+torch.Dataloader(torch.load(pt file), batch_size = 4, shuffle = true)
