@@ -10,6 +10,8 @@ from tqdm import tqdm
 import pickle
 import matplotlib.pyplot as plt
 
+from copy import deepcopy
+
 import sys
 
 '''
@@ -28,9 +30,13 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     # Training loop
     model_weights = []
     val_losses = []
+    val_acc = []
     train_losses = []
+    train_acc = []
     for epoch in range(num_epochs):
         running_loss = 0.0
+        correct = 0
+        total = 0
         model.train()
         for sequences, targets in dataset:
             sequences, targets = sequences.to(device), targets.to(device)
@@ -42,15 +48,21 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
             optimizer.step()
             running_loss += loss.item()
 
+            predicted = torch.round(outputs).int()
+            correct += (predicted == targets).sum().item()
+            total += targets.size(0)
+
+        train_acc.append(correct / total)
+
         
         avg_loss = running_loss / len(dataset)
-        print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        # print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
 
         if scheduler is not None:
             scheduler.step()
 
-        model_weights.append(model.state_dict())
+        model_weights.append(deepcopy(model.state_dict()))
 
         # Validation
         val_loss = 0.0
@@ -70,7 +82,8 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
                 correct += (predicted == targets).sum().item()
 
         val_losses.append(val_loss)
-        print(f"Validation Loss: {val_loss}, Accuracy: {correct/total}")
+        val_acc.append(correct / total)
+        # print(f"Validation Loss: {val_loss}, Accuracy: {correct/total}")
 
     # Return model weights that minimize validation loss
     min_val_loss = min(val_losses)
@@ -80,8 +93,10 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     # print(min_val_loss, min_val_loss_idx)
     # plt.plot(val_losses, label="val")
     # plt.plot(train_losses, label="train")
+    # plt.plot(train_acc)
     # plt.legend()
     # plt.show()
+    model(sequences)
     return model.state_dict()
 
 
