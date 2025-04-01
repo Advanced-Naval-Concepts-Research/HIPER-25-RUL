@@ -14,7 +14,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data import random_split, Subset
 
-from train_model import train_model as train_model_func1
+from train_model import train_model as train_model_func
 from train_model import train_encoder
 from test_model import test_model as test_model_func
 from models.overcomplete_autoencoder import OvercompleteAutoencoder as Auto
@@ -24,6 +24,7 @@ from data_processing.data_preprocessing import create_sensor_groups
 from models.base_model import BaseRULModel as Base
 from models.CnnLstmDAG import LSTMCNNModel1 as LSTMCNN
 from models.CnnLstmDnn import LSTMCNNModel as LSTMCNNAuto
+from models.LSTM import LSTMModel as LSTM
 # TODO add other LSTM model
 
 # Hyperparameter optimization
@@ -42,12 +43,24 @@ class RMSELoss(nn.Module):
         loss=torch.mean(torch.sqrt(torch.sum(torch.square(ground_truth-prediction),axis=-1))) + self.eps
         return loss
     
+## Custom loss function
+class ConservativeLoss(nn.Module):
+    def __init__(self, alpha):
+        super(ConservativeLoss, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, predictions, targets):
+        return torch.mean((predictions - targets) ** 2) + self.alpha*(torch.mean(torch.relu(predictions-targets)))
+    
 
 
-def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation:int=None):
+def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation:int=None, min_max=False):
     # Loads dataset based on parameters and returns it
 
     dir = 'data/processed_data'
+
+    if min_max:
+        dir += '/min_max'
 
     if interpolation is not None:
         dir += '/interpolated/' + str(interpolation)
@@ -58,21 +71,18 @@ def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation
 
     dataset = torch.load(file, weights_only=False)
 
-    # Convert to zscore
-    # mean = dataset.sensor_data.mean(axis=1)
-    # std = dataset.sensor_data.std(axis=1)
 
-    # class ZScoreTransform():
-    #     def __call__(self, sample):
-    #         # mean = sample.mean(axis=0)
-    #         # std = sample.std(axis=0)
-    #         # return (sample - mean) / std
-    #         return sample - sample[0,:]
+    class ZScoreTransform():
+        def __call__(self, sample):
+            # mean = sample.mean(axis=0)
+            # std = sample.std(axis=0)
+            # return (sample - mean) / std
+            return sample - sample[0,:]
 
     # if interpolation == 30:
-    #     dataset = RULDataset(dataset.sensor_data, dataset.rul_labels, 3, transform=ZScoreTransform())
+    #     dataset = RULDataset(dataset.sensor_data, dataset.rul_labels, 10, transform=ZScoreTransform())
     # else:
-    #     dataset = RULDataset(dataset.sensor_data, dataset.rul_labels, None, transform=ZScoreTransform())
+    # dataset = RULDataset(dataset.sensor_data, dataset.rul_labels, None, transform=ZScoreTransform())
 
 
     return dataset
@@ -97,7 +107,7 @@ def map_fp_to_idx():
 
     return fp_to_idx
 
-def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
+def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partition:str="A", min_max:bool=False):
     # Functiont to control training
     # Takes in a model, and hyperparameters
     # Creates necessary objects and trains model
@@ -108,8 +118,10 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
     fp_to_idx = map_fp_to_idx()
 
     for data_idx in tqdm(range(1,51)):
+    # for data_idx in tqdm(range(1,2)):
 
-        with open("data/train_test_val_sets/partition_A/split_" + str(data_idx) + ".pkl", "rb") as f:
+
+        with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(data_idx) + ".pkl", "rb") as f:
             train_test_val_set = pkl.load(f)
             train_fps = train_test_val_set["train"]
             val_fps = train_test_val_set["val"]
@@ -118,23 +130,21 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
             train_fps = [fp_to_idx[i] for i in train_fps]
             val_fps = [fp_to_idx[i] for i in val_fps]
 
+
         for sequence_size in [6,5,4]:
             for op_prof in [1, 2, 3]:
                 for sensor_group, sensors in sensor_groups.items():
 
                     # Load dataset
-                    if model_name == "Base":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=None)
+                    if model_name == "Base" or model_name == "LSTM":
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=None, min_max=min_max)
                     elif model_name == "LSTMCNN":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30)
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30, min_max=min_max)
                     elif model_name == "LSTMCNNAuto":
                         # currently this is the wrong dataset
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
-                    elif model_name == "LSTM":
-                        # TODO
-                        pass
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
                     elif model_name == "Auto":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
 
                     model = None
                     if model_name == "Base":
@@ -145,8 +155,7 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                         model = LSTMCNNAuto(len(sensors))
                     elif model_name == "LSTM":
                         # model = LSTM(len(sensors))
-                        pass
-                        # TODO add LSTM model
+                        model = LSTM(len(sensors))
                     elif model_name =="Auto":
                         # from len(sensors) features to 50-dim features
                         model = Auto(len(sensors), 50)
@@ -172,24 +181,21 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict):
                         scheduler = None
 
                     # Train model
-                    model_weights = train_model_func(model, criterion=loss_fn, optimizer=optimizer, dataset=train_loader, val_dataset=val_loader, num_epochs=hyperparameters["num_epochs"], scheduler=scheduler, device=device)
+                    if model.get_name() == "Auto":
+                        model_weights = train_encoder(model, dataset)
+                    else:
+                        model_weights = train_model_func(model, criterion=loss_fn, optimizer=optimizer, dataset=train_loader, val_dataset=val_loader, num_epochs=hyperparameters["num_epochs"], scheduler=scheduler, device=device)
                     
                     # Save model weights
-                    dir = "models/model_weights/" + model_name + "/" + sensor_group + "/" + str(sequence_size) + "/"
+                    dir = "models/model_weights/" + model_name + "/"
+                    if min_max:
+                        dir += "min_max/"
+                    dir += partition + "/" + sensor_group + "/" + str(sequence_size) + "/"
                     os.makedirs(dir, exist_ok=True)
                     torch.save(model_weights, dir + "set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt")
 
-# function to divert which trainer to use
-def train_model_func(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, val_dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None, device="cpu"):
-    if model.get_name() == "Auto":
-        #train the autoencoder differently
-        # optimizers and num_epochs and stuff hard coded in this func.
-        train_encoder(model, dataset)
-    else:
-        #train other models
-        train_model_func1(model, criterion, optimizer, dataset, val_dataset, num_epochs, scheduler, device)
 
-def test_model(model_name, hyperparameters:dict, sensor_groups:list):
+def test_model(model_name, hyperparameters:dict, sensor_groups:list, min_max:bool=False):
     # Function to control testing
     fp_to_idx = map_fp_to_idx()
 
@@ -209,15 +215,13 @@ def test_model(model_name, hyperparameters:dict, sensor_groups:list):
                 for sensor_group, sensors in sensor_groups.items():
 
                     # Load dataset
-                    if model_name == "Base":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=None)
+                    if model_name == "Base" or model_name == "LSTM":
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=None, min_max=min_max)
                     elif model_name == "LSTMCNN":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30)
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30, min_max=min_max)
                     elif model_name == "LSTMCNNAuto":
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
-                    elif model_name == "LSTM":
-                        # TODO
-                        pass
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
+                    
 
                     model = None
                     if model_name == "Base":
@@ -227,9 +231,7 @@ def test_model(model_name, hyperparameters:dict, sensor_groups:list):
                     elif model_name == "LSTMCNNAuto":
                         model = LSTMCNNAuto(len(sensors))
                     elif model_name == "LSTM":
-                        # model = LSTM(len(sensors))
-                        pass
-                        # TODO add LSTM model
+                        model = LSTM(len(sensors))
                     else:
                         raise ValueError("Invalid model name")
                     
@@ -304,11 +306,38 @@ def setup_hyperparameters_lstmcnn():
         "num_epochs": 500,
         "batch_size": 54,
         "optimizer": optim.RMSprop,
-        "loss_fn": nn.MSELoss(),
+        "loss_fn": RMSELoss(),
         "scheduler": None
     }
 
     return hyperparameters
+
+def setup_hyperparameters_lstm():
+
+    alpha = 0
+
+    hyperparameters = {
+        "learning_rate": 0.001,
+        "learning_rate": 0.005,
+        "num_epochs": 300,
+        "batch_size": 54,
+        "optimizer": optim.Adam,
+        "loss_fn": ConservativeLoss(alpha),
+        "scheduler": None
+    }
+
+    return hyperparameters
+
+
+def setup_hyperparameters(model:str):
+    if model == "Base":
+        return setup_hyperparameters_base()
+    if model == "LSTMCNN":
+        return setup_hyperparameters_lstmcnn()
+    if model == "LSTM":
+        return setup_hyperparameters_lstm()
+    else:
+        return "INVALID NAME"
 
 if __name__ == "__main__":
     # Main script function
@@ -320,28 +349,31 @@ if __name__ == "__main__":
     #             Save statistics
     parser = argparse.ArgumentParser(description="Train and Test RUL Models")
     parser.add_argument("--mode", choices=["train", "test"], required=True, help="Mode: train or test. Right now the script just trains and this is ignored")
-    parser.add_argument("--model", type=str, required=True, choices=["Base", "LSTMCNN", "LSTMCNNAuto", "Auto"], help="Model name")
+    parser.add_argument("--model", type=str, required=True, choices=["Base", "LSTMCNN", "LSTMCNNAuto", "LSTM", "Auto"], help="Model name")
+    parser.add_argument("--partition", type=str, required=True, choices=["A", "B", "C"], help="Training partition")
+    parser.add_argument("--minmax", type=str, required=True, choices = ["true", "false"], help="Use minmax constrained data")
     args = parser.parse_args()
     print("Using device:", device)
     
     # Models to train
     # models = ["Base", "LSTMCNN", "LSTMCNNAuto"]
     # models = ["Base"]
-    models = ["LSTMCNN"]
+    # models = ["LSTMCNN"]
     models = []
     models.append(str(args.model))
+
+    min_max = bool(args.minmax)
    
     # Sensor groups
     sensor_groups = create_sensor_groups()
     sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
 
-    # Hyperparameters
-    hyperparameters = setup_hyperparameters_base()
-
     for model in models:
-        train_model(model, hyperparameters, sensor_groups)
+        hyperparameters = setup_hyperparameters(model)
+        
+        train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
         if model != "Auto":
-            test_model(model, hyperparameters, sensor_groups)
+            test_model(model, hyperparameters, sensor_groups, min_max)
     
     # TODO add testing and statistics production
     # TODO add hyperparameter optimization
