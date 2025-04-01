@@ -115,6 +115,20 @@ def create_train_test_val_splits(data_dict:dict, sensor_group:dict, split:list=[
 
     return datasets, dataloaders
 
+
+def min_max_constraint(sensors_to_datasets:dict):
+    # For each dataset, constrain data to [0,1] range for input into ML models
+    for datasets in sensors_to_datasets.values():
+        for dataset in datasets[0].values():
+            for i, data in enumerate(dataset):
+                sensor_data, rul_labels = data.sensor_data, data.rul_labels
+                min_val = sensor_data.min(axis=(0, 1), keepdims=True)
+                max_val = sensor_data.max(axis=(0, 1), keepdims=True)
+                normalized_data = (sensor_data - min_val) / (max_val - min_val)
+                dataset[i] = RULDataset(normalized_data, rul_labels, sequence_length=None)
+
+    
+
 # Creates sensor groups based on the specified sensors
 # Since plants are independent of each other, we can create separate sensor groups for each plant
 # Group 1 (All sensors in cooling and fueling systems): temp delta, cooling flow rate, cooling pump current and pressure delta, fuel lp flow, fuel hp rail, fuel hp relief, fuel lp pressure, fuel hp pressure, fuel lp current, fuel hp current
@@ -421,11 +435,13 @@ if __name__ == "__main__":
     sequences_filename = "data/Failure_Profile_Labels/labels_combined.csv"
 
     # Train test val splits
-    # gen_train_test_val_splits(sequences_filename, "A", 0.8, 0.1)
+    gen_train_test_val_splits(sequences_filename, "B", 0.6, 0.2)
+    gen_train_test_val_splits(sequences_filename, "C", 0.7, 0.15)
+
 
     # stdv_df = create_df_from_proc_data("data/Operational_Profile_1/")
 
-    data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
+    # data_dict = parse_avg_sensor_data(data_dir, sequences_filename)
     sensor_groups = create_sensor_groups()
 
     # combined = sensor_groups["combined_g1"]
@@ -439,7 +455,11 @@ if __name__ == "__main__":
     sensors_to_datasets = get_data(data_dir, sequences_filename, num_iters=1, batch_size=4)
     # save_data(sensors_to_datasets, "data/processed_data/original")
 
+    # Constrain to [0,1]
+    min_max_constraint(sensors_to_datasets)
+    # save_data(sensors_to_datasets, "data/processed_data/min_max/original")
+
     # Interpolate and apply noise
-    num_points = 30
-    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=3)
-    save_data(sensors_to_datasets, "data/processed_data/interpolated/" + str(num_points))
+    num_points = 14
+    sensors_to_datasets = apply_polynomial_interpolation(sensors_to_datasets, sensor_groups, num_points, sequence_length=None)
+    save_data(sensors_to_datasets, "data/processed_data/min_max/interpolated/" + str(num_points))

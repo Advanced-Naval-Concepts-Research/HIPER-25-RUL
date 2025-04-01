@@ -96,7 +96,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     # plt.plot(train_acc)
     # plt.legend()
     # plt.show()
-    model(sequences)
+    # model(sequences)
     return model.state_dict()
 
 
