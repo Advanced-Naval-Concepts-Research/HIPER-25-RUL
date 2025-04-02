@@ -196,7 +196,7 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
                     torch.save(model_weights, dir + "set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt")
 
 
-def test_model(model_name, hyperparameters:dict, sensor_groups:list, min_max:bool=False):
+def test_model(model_name, hyperparameters:dict, sensor_groups:list, partition:str, min_max:bool=False):
     # Function to control testing
     fp_to_idx = map_fp_to_idx()
 
@@ -232,12 +232,17 @@ def test_model(model_name, hyperparameters:dict, sensor_groups:list, min_max:boo
                     elif model_name == "LSTMCNNAuto":
                         model = LSTMCNNAuto(len(sensors))
                     elif model_name == "LSTM":
-                        model = LSTM(len(sensors))
+                        model = LSTM(len(sensors), sequence_size)
                     else:
                         raise ValueError("Invalid model name")
                     
                     # Load model dict
-                    filepath = "models/model_weights/" + model_name + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
+                    filepath = "models/model_weights/" + model_name + "/"
+                    if min_max:
+                        filepath += "min_max/"
+                    filepath += partition + "/" + sensor_group + "/" + str(sequence_size) + "/"
+                    filepath += "set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
+                    # filepath = "models/model_weights/" + model_name + "/" + partition + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(data_idx) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
                     model.load_state_dict(torch.load(filepath))
 
                     # Move model to device
@@ -377,8 +382,8 @@ def setup_hyperparameters_base():
         "num_epochs": 500,
         "batch_size": 54,
         "optimizer": optim.Adam,
-        # "loss_fn": RMSELoss(),
-        "loss_fn": nn.MSELoss(),
+        "loss_fn": RMSELoss(),
+        # "loss_fn": nn.MSELoss(),
         "scheduler": None
     }
 
@@ -404,13 +409,21 @@ def setup_hyperparameters_lstm():
 
     alpha = 0
 
+    # hyperparameters = {
+    #     "learning_rate": 0.005,
+    #     "num_epochs": 500,
+    #     "batch_size": 54,
+    #     "optimizer": optim.Adam,
+    #     "loss_fn": ConservativeLoss(alpha),
+    #     "scheduler": None
+    # }
+
     hyperparameters = {
-        "learning_rate": 0.001,
         "learning_rate": 0.005,
-        "num_epochs": 300,
+        "num_epochs": 750,
         "batch_size": 54,
         "optimizer": optim.Adam,
-        "loss_fn": ConservativeLoss(alpha),
+        "loss_fn": RMSELoss(),
         "scheduler": None
     }
 
@@ -439,7 +452,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["train", "test"], required=True, help="Mode: train or test. Right now the script just trains and this is ignored")
     parser.add_argument("--model", type=str, required=True, choices=["Base", "LSTMCNN", "LSTMCNNAuto", "LSTM", "Auto"], help="Model name")
     parser.add_argument("--partition", type=str, required=True, choices=["A", "B", "C"], help="Training partition")
-    parser.add_argument("--minmax", type=str, required=True, choices = ["true", "false"], help="Use minmax constrained data")
+    parser.add_argument("--minmax", type=str, required=True, choices = ["True", "False"], help="Use minmax constrained data")
     args = parser.parse_args()
     print("Using device:", device)
     
@@ -450,22 +463,27 @@ if __name__ == "__main__":
     models = []
     models.append(str(args.model))
 
-    min_max = bool(args.minmax)
+    min_max = True if args.minmax == "True" else False 
+
+    print(min_max)
    
     # Sensor groups
     sensor_groups = create_sensor_groups()
     sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
 
     for model in models:
-        hyperparameters = setup_hyperparameters("Base") # base for now
+        hyperparameters = setup_hyperparameters(model)
+        
         if model == "Auto":
             train_encoder(hyperparameters, sensor_groups, str(args.partition))
             end_dict = test_encoder(sensor_groups, str(args.partition))
             print(end_dict)
         else:
-            train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
-            if model != "Auto":
-                test_model(model, hyperparameters, sensor_groups, min_max)
+            print(args.mode)
+            if str(args.mode) == "train":
+                train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
+            else:
+                test_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
     
     # TODO add testing and statistics production
     # TODO add hyperparameter optimization
