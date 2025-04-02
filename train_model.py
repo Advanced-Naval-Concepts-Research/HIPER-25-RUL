@@ -57,6 +57,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
         
         avg_loss = running_loss / len(dataset)
         # print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        #print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
 
         if scheduler is not None:
@@ -126,7 +127,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
     # pickle.dump(weights, open("models/model_weights/" + model.get_name() + "/" + model.get_name() + "_weights.pkl", "wb"))
 
 
-def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_rate:float = 1e-3):
+def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=1000, learning_rate:float = 0.1):
      criterion = nn.MSELoss()  # Paper didnt specify, will use most common
      optimizer = optim.Adam(model.parameters(), lr=learning_rate) # Paper didnt specify, will use most common
      # Training loop
@@ -155,5 +156,6 @@ def train_encoder(model:nn.Module, dataset:DataLoader, num_epochs=5, learning_ra
              total_loss += loss.item()
          
          avg_loss = total_loss / len(dataset)
-         #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
+         if epoch%100 == 0:
+            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
      return model.state_dict()

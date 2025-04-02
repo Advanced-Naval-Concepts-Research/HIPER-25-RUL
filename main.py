@@ -11,12 +11,13 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from torch.utils.data import random_split, Subset
 
 from train_model import train_model as train_model_func
-from train_model import train_encoder
+from train_model import train_encoder as train_encoder_func
 from test_model import test_model as test_model_func
+from test_model import test_encoder as test_encoder_func
 from models.overcomplete_autoencoder import OvercompleteAutoencoder as Auto
 from data_processing.data_preprocessing import RULDataset as RULDataset
 from data_processing.data_preprocessing import create_sensor_groups
@@ -182,7 +183,7 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
 
                     # Train model
                     if model.get_name() == "Auto":
-                        model_weights = train_encoder(model, dataset)
+                        assert False, "should not be here"
                     else:
                         model_weights = train_model_func(model, criterion=loss_fn, optimizer=optimizer, dataset=train_loader, val_dataset=val_loader, num_epochs=hyperparameters["num_epochs"], scheduler=scheduler, device=device)
                     
@@ -267,6 +268,93 @@ def test_model(model_name, hyperparameters:dict, sensor_groups:list, min_max:boo
     return test_loss, test_accuracy
 
 
+
+def train_encoder(hyperparameters:dict, sensor_groups:dict, partition:str="A", min_max:bool=False):
+    fp_to_idx = map_fp_to_idx()
+    
+    with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(1) + ".pkl", "rb") as f:
+            train_test_val_set = pkl.load(f)
+            train_fps = train_test_val_set["train"]
+            val_fps = train_test_val_set["val"]
+
+            # Sub to indices
+            train_fps = [fp_to_idx[i] for i in train_fps]
+            val_fps = [fp_to_idx[i] for i in val_fps]
+
+            for sequence_size in [6,5,4]:
+                for op_prof in [1, 2, 3]:
+                    for sensor_group, sensors in sensor_groups.items():
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
+                        model = Auto(len(sensors), 50)
+                        
+                        # Move model to device
+                        model.to(device)
+                        
+                        # Dataloader
+                        # Split into train and validation
+                        train_dataset = Subset(dataset, train_fps)
+                        val_dataset = Subset(dataset, val_fps)
+                        concat = ConcatDataset([train_dataset,val_dataset])
+                        # train the autoencoder on everything but the test data all at once
+                        #print(hyperparameters)
+                        loader = DataLoader(concat, batch_size=hyperparameters["batch_size"], shuffle=True)
+
+                        # Create optimizer
+                        # optimizer = hyperparameters["optimizer"](model.parameters(), lr=hyperparameters["learning_rate"])
+                        # loss_fn = hyperparameters["loss_fn"]
+                        # if hyperparameters["scheduler"] is not None:
+                        #     scheduler = hyperparameters["scheduler"](optimizer)
+                        # else:
+                        #     scheduler = None
+
+                        # Train model
+                        print(f"BEGIN operational profile:{op_prof}, sequencesize: {sequence_size}")
+                        model_weights = train_encoder_func(model, loader)
+                        
+                        # Save model weights
+                        dir = "models/model_weights/" + "Auto" + "/"
+                        if min_max:
+                            dir += "min_max/"
+                        dir += partition + "/" + sensor_group + "/" + str(sequence_size) + "/"
+                        os.makedirs(dir, exist_ok=True)
+                        torch.save(model_weights, dir + "set_" + str(1) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt")
+
+def test_encoder(sensor_groups:dict, partition:str="A"):
+    fp_to_idx = map_fp_to_idx()
+    test_loss = {sensor_name:{i:{j:[] for j in [4,5,6]} for i in [1,2,3]} for sensor_name in sensor_groups.keys()}
+    
+    
+    with open("data/train_test_val_sets/partition_A/split_" + str(1) + ".pkl", "rb") as f:
+            train_test_val_set = pkl.load(f)
+            test_fps = train_test_val_set["test"]
+            test_fps = [fp_to_idx[i] for i in test_fps]
+
+            for sequence_size in [6,5,4]:
+                for op_prof in [1, 2, 3]:
+                    for sensor_group, sensors in sensor_groups.items():
+
+                        # dataset stuff
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=False)
+                        model = Auto(len(sensors), 50)
+                        # Load model dict
+                        filepath = "models/model_weights/" + "Auto" + "/" + partition + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(1) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
+                        # print(filepath)
+                        checkpoint = torch.load(filepath)
+                        # print(type(checkpoint))  # This should show 'dict' if it's a valid state_dict
+                        # print(checkpoint)  # Inspect the contents of the checkpoint (if it's a dict)
+                        model.load_state_dict(checkpoint)
+
+                        # Move model to device
+                        model.to(device)
+
+                        # Dataloader
+                        test_dataset = Subset(dataset, test_fps)
+                        test_loader = DataLoader(test_dataset, batch_size=hyperparameters["batch_size"], shuffle=True)
+
+                        loss = test_encoder_func(model, test_loader)
+
+                        test_loss[sensor_group][op_prof][sequence_size].append(loss)
+            return test_loss
 # For each mode
 #     For each sequence
 #         For each sensor group
@@ -369,11 +457,15 @@ if __name__ == "__main__":
     sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
 
     for model in models:
-        hyperparameters = setup_hyperparameters(model)
-        
-        train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
-        if model != "Auto":
-            test_model(model, hyperparameters, sensor_groups, min_max)
+        hyperparameters = setup_hyperparameters("Base") # base for now
+        if model == "Auto":
+            train_encoder(hyperparameters, sensor_groups, str(args.partition))
+            end_dict = test_encoder(sensor_groups, str(args.partition))
+            print(end_dict)
+        else:
+            train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
+            if model != "Auto":
+                test_model(model, hyperparameters, sensor_groups, min_max)
     
     # TODO add testing and statistics production
     # TODO add hyperparameter optimization

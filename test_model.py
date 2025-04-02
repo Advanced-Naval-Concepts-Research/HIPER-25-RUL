@@ -35,3 +35,32 @@ def test_model(model:nn.Module, criterion, dataset:DataLoader, device="cpu"):
 
     # print(f"Test Loss: {avg_loss:.4f}, Test Accuracy: {accuracy:.2f}%")
     return avg_loss, accuracy
+
+def test_encoder(model: nn.Module, test_loader: DataLoader):
+    criterion = nn.MSELoss()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()  # Set model to evaluation mode
+    total_loss = 0.0
+    total_samples = 0
+
+    with torch.no_grad():
+        for batch in test_loader:
+            
+            # Move data to device and reshape like in training
+            data = batch[0].to(device)
+            data = data.reshape(data.shape[0] * data.shape[1], -1)
+            
+            # Forward pass
+            reconstructed = model(data)
+            
+            # Calculate loss
+            loss = criterion(reconstructed, data)
+            
+            # Accumulate loss and sample count
+            total_loss += loss.item() * data.size(0)  # Multiply by number of samples in batch
+            total_samples += data.size(0)
+
+    avg_loss = total_loss / total_samples
+    print(f"\nTest Loss: {avg_loss:.4f}")
+    return avg_loss

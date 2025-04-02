@@ -69,7 +69,6 @@ class LSTMCNNModel1(nn.Module):
         
         # Take that output and fully connect its layer into the RUL prediction
         return self.fc(out)
-        
 
     def get_name(self):
         return "LSTMCNN"
