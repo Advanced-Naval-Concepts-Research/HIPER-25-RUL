@@ -10,6 +10,23 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Main",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--mode",
+                "train",
+                "--model",
+                "LSTM",
+                "--partition",
+                "C",
+                "--minmax",
+                "False"
+            ]
         }
     ]
 }
