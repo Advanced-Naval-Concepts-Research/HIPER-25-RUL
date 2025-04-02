@@ -206,7 +206,7 @@ def test_model(model_name, hyperparameters:dict, sensor_groups:list, partition:s
 
     for data_idx in tqdm(range(1,51)):
 
-        with open("data/train_test_val_sets/partition_A/split_" + str(data_idx) + ".pkl", "rb") as f:
+        with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(data_idx) + ".pkl", "rb") as f:
             train_test_val_set = pkl.load(f)
             test_fps = train_test_val_set["test"]
             test_fps = [fp_to_idx[i] for i in test_fps]
@@ -329,7 +329,7 @@ def test_encoder(sensor_groups:dict, partition:str="A"):
     test_loss = {sensor_name:{i:{j:[] for j in [4,5,6]} for i in [1,2,3]} for sensor_name in sensor_groups.keys()}
     
     
-    with open("data/train_test_val_sets/partition_A/split_" + str(1) + ".pkl", "rb") as f:
+    with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(1) + ".pkl", "rb") as f:
             train_test_val_set = pkl.load(f)
             test_fps = train_test_val_set["test"]
             test_fps = [fp_to_idx[i] for i in test_fps]
