@@ -55,7 +55,7 @@ class ConservativeLoss(nn.Module):
     
 
 
-def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation:int=None, min_max=False):
+def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation:int=None, min_max=False, autodim:int=None, partition:str = "A"):
     # Loads dataset based on parameters and returns it
 
     dir = 'data/processed_data'
@@ -63,10 +63,14 @@ def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation
     if min_max:
         dir += '/min_max'
 
-    if interpolation is not None:
-        dir += '/interpolated/' + str(interpolation)
+    if autodim is not None:
+        assert partition == "A" or partition =="B" or partition =="C"
+        dir += "Autoencoder/14->" +str(autodim) + "/" + partition
     else:
-        dir += '/original'
+        if interpolation is not None:
+            dir += '/interpolated/' + str(interpolation)
+        else:
+            dir += '/original'
 
     file = dir + "/" + sensor_group + "/op_prof_" + str(op_prof) + '/dataset_seq_' + str(sequence_size) + '.pt'
 
