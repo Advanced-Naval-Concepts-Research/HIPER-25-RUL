@@ -278,6 +278,8 @@ def train_encoder(hyperparameters:dict, sensor_groups:dict, partition:str="A", m
     
     with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(1) + ".pkl", "rb") as f:
             train_test_val_set = pkl.load(f)
+            #print(train_test_val_set)
+            #assert False
             train_fps = train_test_val_set["train"]
             val_fps = train_test_val_set["val"]
 
@@ -389,6 +391,17 @@ def setup_hyperparameters_base():
     return hyperparameters
 
 
+def setup_hyperparameters_auto():
+    
+    hyperparameters = {
+        "learning_rate": 0.005,
+        "num_epochs": 500,
+        "batch_size": 20,
+        "scheduler": None
+    }
+
+    return hyperparameters
+
 def setup_hyperparameters_lstmcnn():
     # Sets up hyperparameters for training
     # Returns a dictionary of hyperparameters
@@ -436,6 +449,8 @@ def setup_hyperparameters(model:str):
         return setup_hyperparameters_lstmcnn()
     if model == "LSTM":
         return setup_hyperparameters_lstm()
+    if model =="Auto":
+        return setup_hyperparameters_auto()
     else:
         return "INVALID NAME"
 
