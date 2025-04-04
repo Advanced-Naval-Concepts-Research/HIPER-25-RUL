@@ -365,9 +365,39 @@ def test_encoder(sensor_groups:dict, partition:str="A"):
 
                         test_loss[sensor_group][op_prof][sequence_size].append(loss)
             return test_loss
-# For each mode
-#     For each sequence
-#         For each sensor group
+
+
+
+def save_statistics(save_dir:str, model:str, minmax:bool, sensor_groups, partition:str, test_loss, test_acc):
+
+    for sensor_group in sensor_groups.keys():
+        for op_prof in [1, 2, 3]:
+
+            # Create tables based on op profiles
+            # columns = Test #, 4, 5, 6
+
+            if minmax:
+                dir = save_dir + "/" + model + "/" + partition + "/minmax/" + sensor_group + "/" + str(op_prof) + "/"
+            else:
+                    dir = save_dir + "/" + model + "/" + partition + "/regular/" + sensor_group + "/" + str(op_prof) + "/"
+            os.makedirs(dir, exist_ok=True)
+
+            df_loss = pd.DataFrame(columns=["Test #", "4", "5", "6"])
+            df_loss["Test #"] = [i for i in range(1, 51)]
+            df_loss["4"] = test_loss[sensor_group][op_prof][4]
+            df_loss["5"] = test_loss[sensor_group][op_prof][5]
+            df_loss["6"] = test_loss[sensor_group][op_prof][6]
+
+            df_acc = pd.DataFrame(columns=["Test #", "4", "5", "6"])
+            df_acc["Test #"] = [i for i in range(1, 51)]
+            df_acc["4"] = test_acc[sensor_group][op_prof][4]
+            df_acc["5"] = test_acc[sensor_group][op_prof][5]
+            df_acc["6"] = test_acc[sensor_group][op_prof][6]
+
+            # Save to csv
+            df_loss.to_csv(dir + "loss.csv", index=False)
+            df_acc.to_csv(dir + "accuracy.csv", index=False)
+
 
 
 # Hyperparameter optimization
@@ -422,17 +452,6 @@ def setup_hyperparameters_lstmcnn():
     return hyperparameters
 
 def setup_hyperparameters_lstm():
-
-    alpha = 0
-
-    # hyperparameters = {
-    #     "learning_rate": 0.005,
-    #     "num_epochs": 500,
-    #     "batch_size": 54,
-    #     "optimizer": optim.Adam,
-    #     "loss_fn": ConservativeLoss(alpha),
-    #     "scheduler": None
-    # }
 
     hyperparameters = {
         "learning_rate": 0.005,
@@ -504,7 +523,9 @@ if __name__ == "__main__":
                 train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
             else:
                 test_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
+                save_statistics("data/stats", model, min_max, sensor_groups, str(args.partition), test_loss, test_acc)
     
+
     # TODO add testing and statistics production
     # TODO add hyperparameter optimization
     # TODO add saving of statistics

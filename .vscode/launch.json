@@ -19,11 +19,11 @@
             "console": "integratedTerminal",
             "args": [
                 "--mode",
-                "train",
+                "test",
                 "--model",
-                "LSTM",
+                "LSTMCNN",
                 "--partition",
-                "C",
+                "A",
                 "--minmax",
                 "False"
             ]
