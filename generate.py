@@ -5,6 +5,7 @@ from main import load_dataset
 from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from data_processing.data_preprocessing import RULDataset as RULDataset
 import os
+import argparse
 def generate_latent_representations(model, dataloader, device='cpu'):
     """
     Generates latent representations using the encoder of the autoencoder
@@ -44,13 +45,17 @@ def generate_latent_representations(model, dataloader, device='cpu'):
 
 # Usage example
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description="Train and Test RUL Models")
+    parser.add_argument("--partition", choices=["A", "B", "C"], required=True, help="Each autoencoder is trained on each partition")
+    args = parser.parse_args()
     # 1. Initialize model (make sure dimensions match training)
     input_dim = 21
     hidden_dim = 50
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     sensor_groups = create_sensor_groups()
     sensor_groups = {"s1_g1": sensor_groups["s1_g1"], "s1_g2": sensor_groups["s1_g2"], "s1_g3": sensor_groups["s1_g3"]}
-    partition:str="A"
+    partition:str=args.partition
     
     for sequence_size in [6,5,4]:
         for op_prof in [1, 2, 3]:
