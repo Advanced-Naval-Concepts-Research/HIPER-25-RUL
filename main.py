@@ -119,7 +119,6 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
     fp_to_idx = map_fp_to_idx()
 
     for data_idx in tqdm(range(1,51)):
-    # for data_idx in tqdm(range(1,2)):
 
 
         with open("data/train_test_val_sets/partition_" + partition + "/split_" + str(data_idx) + ".pkl", "rb") as f:
