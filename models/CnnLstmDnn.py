@@ -134,5 +134,6 @@ class LSTMCNNModel(nn.Module):
         
         return self.DNN1(combined)
 
-
-
+    def get_name(self):
+        return "LSTMCNNAuto"
+        

@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from data_processing.data_preprocessing import RULDataset as RULDataset
 import os
 import argparse
+import numpy as np
 def generate_latent_representations(model, dataloader, device='cpu'):
     """
     Generates latent representations using the encoder of the autoencoder
@@ -22,12 +23,12 @@ def generate_latent_representations(model, dataloader, device='cpu'):
     model.to(device)
     
     latent_vectors = []
-    
+    all_labels = []
     with torch.no_grad():
         for batch in dataloader:
            
             # Extract inputs - handle different dataloader formats
-            inputs = batch[0] if isinstance(batch, (list, tuple)) else batch
+            inputs, labels = batch[0], batch[1]
             A,B,C = inputs.shape[0], inputs.shape[1], inputs.shape[2]
             inputs = inputs.reshape(A* B, -1)
             #print(inputs.shape)
@@ -38,9 +39,10 @@ def generate_latent_representations(model, dataloader, device='cpu'):
             latents = model.encoder(inputs)
             latents = latents.reshape(A,B,-1)
             latent_vectors.append(latents.cpu())  # Move to CPU to save GPU memory
+            all_labels.append(labels.cpu())
             
     # Concatenate all batches into single tensor
-    return torch.cat(latent_vectors, dim=0)
+    return torch.cat(latent_vectors, dim=0), torch.cat(all_labels, dim=0)
     #return latents
 
 # Usage example
@@ -78,12 +80,15 @@ if __name__ == "__main__":
                 loader = DataLoader(dataset, batch_size=40, shuffle=False) # shuffle is FALSE because we want the same ordering
 
                 # make new dataset
-                latent_data = generate_latent_representations(model, loader, device)
+                latent_data, labels = generate_latent_representations(model, loader, device)
                 #print(f"Generated latent vectors shape: {latent_data.shape}")
                 #assert False, "analyzing shape"
                 filepath = "data/processed_data/Autoencoder/14->50/" + partition + "/" + sensor_group + "/op_prof_" + str(op_prof) + "/dataset_seq_" + str(sequence_size) + ".pt"
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                torch.save(latent_data, filepath)
+                #print(labels)
+                #print(np.array(labels))
+                #assert False
+                torch.save( RULDataset(np.array(latent_data), np.array(labels)), filepath)
                 
                 #write to new data
                 

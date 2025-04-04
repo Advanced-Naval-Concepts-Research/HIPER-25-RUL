@@ -65,7 +65,7 @@ def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation
 
     if autodim is not None:
         assert partition == "A" or partition =="B" or partition =="C"
-        dir += "Autoencoder/14->" +str(autodim) + "/" + partition
+        dir += "/Autoencoder/14->" +str(autodim) + "/" + partition
     else:
         if interpolation is not None:
             dir += '/interpolated/' + str(interpolation)
@@ -145,8 +145,8 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
                     elif model_name == "LSTMCNN":
                         dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=30, min_max=min_max)
                     elif model_name == "LSTMCNNAuto":
-                        # currently this is the wrong dataset
-                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
+                        # currently this is right dataset
+                        dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max, autodim = 50, partition = partition)
                     elif model_name == "Auto":
                         dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max)
 
@@ -455,6 +455,8 @@ def setup_hyperparameters(model:str):
         return setup_hyperparameters_lstm()
     if model =="Auto":
         return setup_hyperparameters_auto()
+    if model =="LSTMCNNAuto":
+        return  setup_hyperparameters_lstmcnn()
     else:
         return "INVALID NAME"
 

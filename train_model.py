@@ -39,6 +39,9 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
         total = 0
         model.train()
         for sequences, targets in dataset:
+            #print(sequences)
+            #print(targets)
+            #assert False
             sequences, targets = sequences.to(device), targets.to(device)
             optimizer.zero_grad()
             outputs = model(sequences)
@@ -56,7 +59,8 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
 
         
         avg_loss = running_loss / len(dataset)
-        # print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        if epoch%10 == 0:   
+            print(f"Epoch {epoch+1}, Loss: {running_loss}")
         #print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
 
