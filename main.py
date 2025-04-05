@@ -41,8 +41,13 @@ class RMSELoss(nn.Module):
         self.eps=1e-6
 
     def forward(self,ground_truth,prediction):
-        loss=torch.mean(torch.sqrt(torch.sum(torch.square(ground_truth-prediction),axis=-1))) + self.eps
-        return loss
+        #loss=torch.mean(torch.sqrt(torch.sum(torch.square(ground_truth-prediction),axis=-1))) + self.eps
+        #return loss
+        # replacing with more numerically stable
+        se = torch.square(ground_truth - prediction)  # squared error
+        sum_se = torch.sum(se, dim=-1)  # sum over feature dim
+        root = torch.sqrt(sum_se + self.eps)  # add eps *before* sqrt
+        return torch.mean(root)
     
 ## Custom loss function
 class ConservativeLoss(nn.Module):
@@ -53,7 +58,13 @@ class ConservativeLoss(nn.Module):
     def forward(self, predictions, targets):
         return torch.mean((predictions - targets) ** 2) + self.alpha*(torch.mean(torch.relu(predictions-targets)))
     
-
+#def init_weights_CNNAUTO(m):
+#    if isinstance(m, nn.LSTM):
+#        for name, param in m.named_parameters():
+#            if 'weight' in name:
+#                nn.init.xavier_uniform_(param)  # Xavier uniform initialization
+#            elif 'bias' in name:
+#                nn.init.zeros_(param)  # Zero initialization for biases
 
 def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation:int=None, min_max=False, autodim:int=None, partition:str = "A"):
     # Loads dataset based on parameters and returns it
@@ -157,6 +168,8 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
                         model = LSTMCNN(len(sensors))
                     elif model_name == "LSTMCNNAuto":
                         model = LSTMCNNAuto(len(sensors))
+                        #init_weights_CNNAUTO(model.lstm1)
+                        #init_weights_CNNAUTO(model.lstm2)
                     elif model_name == "LSTM":
                         # model = LSTM(len(sensors))
                         model = LSTM(len(sensors))
@@ -177,7 +190,8 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
                     val_loader = DataLoader(val_dataset, batch_size=hyperparameters["batch_size"], shuffle=False)
 
                     # Create optimizer
-                    optimizer = hyperparameters["optimizer"](model.parameters(), lr=hyperparameters["learning_rate"])
+                    optimizer = hyperparameters["optimizer"](model.parameters(), lr=hyperparameters["learning_rate"], 
+                                                             weight_decay = hyperparameters["weight_decay"])
                     loss_fn = hyperparameters["loss_fn"]
                     if hyperparameters["scheduler"] is not None:
                         scheduler = hyperparameters["scheduler"](optimizer)
@@ -419,7 +433,8 @@ def setup_hyperparameters_base():
         "optimizer": optim.Adam,
         "loss_fn": RMSELoss(),
         # "loss_fn": nn.MSELoss(),
-        "scheduler": None
+        "scheduler": None,
+        "weight_decay" : 0
     }
 
     return hyperparameters
@@ -431,10 +446,27 @@ def setup_hyperparameters_auto():
         "learning_rate": 0.005,
         "num_epochs": 500,
         "batch_size": 20,
-        "scheduler": None
+        "scheduler": None,
+        "weight_decay" : 0
     }
 
     return hyperparameters
+
+def setup_hyperparameters_lstmcnnAuto():
+    # Sets up hyperparameters for training
+    # Returns a dictionary of hyperparameters
+
+    hyperparameters = {
+        "learning_rate": 0.005,
+        "num_epochs": 500,
+        "batch_size": 54,
+        "optimizer": optim.Adam,
+        "loss_fn": RMSELoss(),
+        "scheduler": None,
+        "weight_decay" : 0.0001
+    }
+    return hyperparameters
+
 
 def setup_hyperparameters_lstmcnn():
     # Sets up hyperparameters for training
@@ -446,7 +478,8 @@ def setup_hyperparameters_lstmcnn():
         "batch_size": 54,
         "optimizer": optim.RMSprop,
         "loss_fn": RMSELoss(),
-        "scheduler": None
+        "scheduler": None,
+        "weight_decay" : 0
     }
 
     return hyperparameters
@@ -459,13 +492,15 @@ def setup_hyperparameters_lstm():
         "batch_size": 54,
         "optimizer": optim.Adam,
         "loss_fn": RMSELoss(),
-        "scheduler": None
+        "scheduler": None,
+        "weight_decay" : 0
     }
 
     return hyperparameters
 
 
 def setup_hyperparameters(model:str):
+   
     if model == "Base":
         return setup_hyperparameters_base()
     if model == "LSTMCNN":
@@ -475,7 +510,7 @@ def setup_hyperparameters(model:str):
     if model =="Auto":
         return setup_hyperparameters_auto()
     if model =="LSTMCNNAuto":
-        return  setup_hyperparameters_lstmcnn()
+        return  setup_hyperparameters_lstmcnnAuto()
     else:
         return "INVALID NAME"
 
@@ -512,7 +547,7 @@ if __name__ == "__main__":
 
     for model in models:
         hyperparameters = setup_hyperparameters(model)
-        
+        print(hyperparameters)
         if model == "Auto":
             train_encoder(hyperparameters, sensor_groups, str(args.partition))
             end_dict = test_encoder(sensor_groups, str(args.partition))

@@ -23,7 +23,29 @@ Params dictionary:
     "num_epochs": int
 }
 '''
-
+def compute_timestep_correlation(x):
+    """
+    Computes the correlation matrix for each sample in the batch over timesteps.
+    
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, timesteps, features]
+        
+    Returns:
+        torch.Tensor: Correlation matrix of shape [batch, timesteps, timesteps]
+    """
+    # Compute mean and std along the feature dimension for each timestep
+    mean = x.mean(dim=-1, keepdim=True)         # shape: [batch, timesteps, 1]
+    std = x.std(dim=-1, keepdim=True, unbiased=False)  # shape: [batch, timesteps, 1]
+    
+    # Normalize each timestep's features (avoid division by zero)
+    x_norm = (x - mean) / (std + 1e-6)            # shape: [batch, timesteps, features]
+    
+    # Compute correlation matrix for each sample using batch matrix multiplication.
+    # This gives a [batch, timesteps, timesteps] tensor.
+    # Dividing by (features - 1) is used if you're after a sample-based Pearson correlation.
+    corr_matrix = torch.bmm(x_norm, x_norm.transpose(1, 2)) / (x.shape[-1] - 1)
+    
+    return corr_matrix
 
 def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:DataLoader, val_dataset:DataLoader, num_epochs=25, scheduler:optim.lr_scheduler=None, device="cpu"):
 
@@ -39,21 +61,43 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
         total = 0
         model.train()
         for sequences, targets in dataset:
-            #print(sequences)
-            #print(targets)
+            
             #assert False
             sequences, targets = sequences.to(device), targets.to(device)
+            #print(1)
             optimizer.zero_grad()
-            outputs = model(sequences)
+            #print(2)
+            if model.get_name() != "LSTMCNNAuto":
+                outputs = model(sequences)
+            else:
+                outputs = model(sequences, compute_timestep_correlation(sequences).unsqueeze(1))
+            #print(3)
             outputs = outputs.reshape([-1])
+            #print(torch.isnan(outputs), torch.isinf(outputs))
+            #print(outputs)
+            #print(4)
             loss = criterion(outputs, targets)
+            #print(criterion)
+            #print(5)
+            #print(torch.isnan(loss), torch.isinf(loss))
+            #print(loss)
+            #assert False
+            #torch.autograd.set_detect_anomaly(True)
+            
             loss.backward()
+            #assert False
+            #print(6)
             optimizer.step()
+            #print(7)
             running_loss += loss.item()
+            #print(8)
 
             predicted = torch.round(outputs).int()
+            #print(9)
             correct += (predicted == targets).sum().item()
+            #print(10)
             total += targets.size(0)
+            #print(11)
 
         train_acc.append(correct / total)
 

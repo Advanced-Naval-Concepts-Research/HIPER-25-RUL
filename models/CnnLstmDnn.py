@@ -3,6 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
+def standardize(tensor):
+    mean = tensor.mean(dim=1, keepdim=True)
+    std = tensor.std(dim=1, keepdim=True)
+    return (tensor - mean) / (std + 1e-6)  # Adding epsilon to avoid division by zero
+
 def compute_timestep_correlation(x):
     """
     Computes the correlation matrix for each sample in the batch over timesteps.
@@ -101,17 +107,25 @@ class LSTMCNNModel(nn.Module):
         
         # DNN to glue
 
-    def forward(self, x):
+    def forward(self, x,  correlation_matrix):
+        x = standardize(x)
+        #print("x", x[0])
+        #print("Correlation matrix shape:", correlation_matrix.shape)
+        #if torch.isnan(x).any():
+        #    print("NaNs found in input to LSTM1")
         lstm_out, _ = self.lstm1(x)  # Output shape: (batch_size, timesteps, hidden_size1)
+        print("lstmout:", lstm_out[0][0])
+        print("shape", lstm_out.shape)
         lstm_out = self.dropout1(lstm_out)
         
         lstm_out, _ = self.lstm2(lstm_out)  # Output shape: (batch_size, timesteps, hidden_size2)
         lstm_out = self.dropout2(lstm_out)
+        #print("lstmout2:", lstm_out)
         lstm_out = lstm_out[:, -1, :]  # Taking the last timestep output
         
         # paper is super unclear on this. They do the CNN over the correlation matrix I believe though
         # shape: [batch, timesteps, featurelength] = [_, 14, 50] in the paper
-        correlation_matrix = compute_timestep_correlation(x).unsqueeze(1)
+        #correlation_matrix = compute_timestep_correlation(x).unsqueeze(1)
         #.unsqueeze turns it into shape [batch, 1 , timesteps, featurelength]
         # so that way it should be able to go into the CNN now
         
@@ -130,8 +144,13 @@ class LSTMCNNModel(nn.Module):
         cnn_out = torch.flatten(cnn_out, start_dim=1)  # Flatten all but batch dimension
         
         combined = torch.cat((lstm_out, cnn_out), dim=1)
+        #print("lstmout1:", lstm_out)
         assert combined.shape[1] == 484, f"Expected 484, but got {combined.shape[1]}"
-        
+       # print("combined:", combined)
+        min_val = combined.min(dim=1, keepdim=True)[0]
+        max_val = combined.max(dim=1, keepdim=True)[0]
+        combined = (combined - min_val) / (max_val - min_val + 1e-8)
+       # print("combined1:", combined)
         return self.DNN1(combined)
 
     def get_name(self):

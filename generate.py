@@ -85,10 +85,15 @@ if __name__ == "__main__":
                 #assert False, "analyzing shape"
                 filepath = "data/processed_data/Autoencoder/14->50/" + partition + "/" + sensor_group + "/op_prof_" + str(op_prof) + "/dataset_seq_" + str(sequence_size) + ".pt"
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                #print(labels)
+                
+                #c = np.array(latent_data)
+                #d = np.array(labels)
+                #print(c.shape)
+                #print(d.shape)
                 #print(np.array(labels))
                 #assert False
-                torch.save( RULDataset(np.array(latent_data), np.array(labels)), filepath)
+                data1 = RULDataset(np.array(latent_data), np.array(labels))
+                torch.save( data1, filepath)
                 
                 #write to new data
                 
