@@ -103,7 +103,7 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
 
         
         avg_loss = running_loss / len(dataset)
-        if epoch%10 == 0:   
+        if (epoch+1)%50 == 0:   
             print(f"Epoch {epoch+1}, Loss: {running_loss}")
         #print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
@@ -121,7 +121,10 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
         with torch.no_grad():
             for sequences, targets in val_dataset:
                 sequences, targets = sequences.to(device), targets.to(device)
-                outputs = model(sequences)
+                if model.get_name() != "LSTMCNNAuto":
+                    outputs = model(sequences)
+                else:
+                    outputs = model(sequences, compute_timestep_correlation(sequences).unsqueeze(1))
                 outputs = outputs.reshape([-1])
                 loss = criterion(outputs, targets)
                 val_loss += loss.item()

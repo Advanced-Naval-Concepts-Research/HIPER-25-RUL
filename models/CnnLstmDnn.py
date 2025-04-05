@@ -4,10 +4,10 @@ import torch.nn.functional as F
 
 
 
-def standardize(tensor):
-    mean = tensor.mean(dim=1, keepdim=True)
-    std = tensor.std(dim=1, keepdim=True)
-    return (tensor - mean) / (std + 1e-6)  # Adding epsilon to avoid division by zero
+def standardize(tensor, coef=1):
+    min_val = tensor.min(dim=1, keepdim=True)[0]
+    max_val = tensor.max(dim=1, keepdim=True)[0]
+    return coef* ((tensor - min_val) / (max_val - min_val + 1e-8))
 
 def compute_timestep_correlation(x):
     """
@@ -108,14 +108,14 @@ class LSTMCNNModel(nn.Module):
         # DNN to glue
 
     def forward(self, x,  correlation_matrix):
-        x = standardize(x)
+        #x = standardize(x,0)
         #print("x", x[0])
         #print("Correlation matrix shape:", correlation_matrix.shape)
         #if torch.isnan(x).any():
         #    print("NaNs found in input to LSTM1")
         lstm_out, _ = self.lstm1(x)  # Output shape: (batch_size, timesteps, hidden_size1)
-        print("lstmout:", lstm_out[0][0])
-        print("shape", lstm_out.shape)
+        #print("lstmout:", lstm_out[0][0])
+        #print("shape", lstm_out.shape)
         lstm_out = self.dropout1(lstm_out)
         
         lstm_out, _ = self.lstm2(lstm_out)  # Output shape: (batch_size, timesteps, hidden_size2)
@@ -147,11 +147,11 @@ class LSTMCNNModel(nn.Module):
         #print("lstmout1:", lstm_out)
         assert combined.shape[1] == 484, f"Expected 484, but got {combined.shape[1]}"
        # print("combined:", combined)
-        min_val = combined.min(dim=1, keepdim=True)[0]
-        max_val = combined.max(dim=1, keepdim=True)[0]
-        combined = (combined - min_val) / (max_val - min_val + 1e-8)
+        #min_val = combined.min(dim=1, keepdim=True)[0]
+        #max_val = combined.max(dim=1, keepdim=True)[0]
+        #combined = (combined - min_val) / (max_val - min_val + 1e-8)
        # print("combined1:", combined)
-        return self.DNN1(combined)
+        return self.DNN1(standardize(combined))
 
     def get_name(self):
         return "LSTMCNNAuto"

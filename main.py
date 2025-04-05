@@ -167,7 +167,7 @@ def train_model(model_name:str, hyperparameters:dict, sensor_groups:dict, partit
                     elif model_name == "LSTMCNN":
                         model = LSTMCNN(len(sensors))
                     elif model_name == "LSTMCNNAuto":
-                        model = LSTMCNNAuto(len(sensors))
+                        model = LSTMCNNAuto(50) # special case
                         #init_weights_CNNAUTO(model.lstm1)
                         #init_weights_CNNAUTO(model.lstm2)
                     elif model_name == "LSTM":
