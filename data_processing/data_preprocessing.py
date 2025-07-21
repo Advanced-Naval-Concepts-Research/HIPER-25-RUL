@@ -207,11 +207,6 @@ def polynomial_interpolation(dataset:RULDataset, num_points:int, sensor_group:li
             x_new = np.linspace(0, T-1, num_points)
             y_new = f(x_new)
 
-            # Apply noise
-            # NOTE the standard deviations seem to be extremely large and move away from the spirit of the data. So, for now I will not apply noise. This will be revisited
-            # noise = np.random.normal(0, stdv[sensor_group[j]], num_points)
-            # y_new += noise
-
             interpolated_data[i, :, j] = y_new
             interpolated_data[i, 0, j] = sensor_data[i, 0, j]
             interpolated_data[i, -1, j] = sensor_data[i, -1, j]   

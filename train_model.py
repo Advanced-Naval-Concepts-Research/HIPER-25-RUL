@@ -103,8 +103,8 @@ def train_model(model:nn.Module, criterion, optimizer:optim.Optimizer, dataset:D
 
         
         avg_loss = running_loss / len(dataset)
-        if (epoch+1)%50 == 0:   
-            print(f"Epoch {epoch+1}, Loss: {running_loss}")
+        # if (epoch+1)%50 == 0:   
+        #     print(f"Epoch {epoch+1}, Loss: {running_loss}")
         #print(f"Epoch {epoch+1}, Loss: {running_loss}")
         train_losses.append(running_loss)
 

@@ -71,11 +71,14 @@ class LSTMCNNModel(nn.Module):
         # LSTM component
         
         self.lstm1 = nn.LSTM(input_size, lstm_hidden_size1, batch_first=True)  # First LSTM layer
-        self.dropout1 = nn.Dropout(lstm_dropout_rate)  # dropout rate was not specified by paper. 0.2 is used
+        # self.dropout1 = nn.Dropout(lstm_dropout_rate)  # dropout rate was not specified by paper. 0.2 is used
+        self.dropout1 = nn.Dropout(0)  # dropout rate was not specified by paper. 0.2 is used
+
         
         self.lstm2 = nn.LSTM(lstm_hidden_size1, lstm_out_size2, batch_first=True)  # Out size is 4 implied by paper
         # althought it was not directly said
-        self.dropout2 = nn.Dropout(lstm_dropout_rate)  # dropout rate was not specified by paper. 0.2 is used
+        # self.dropout2 = nn.Dropout(lstm_dropout_rate)  # dropout rate was not specified by paper. 0.2 is used
+        self.dropout2 = nn.Dropout(0)  # dropout rate was not specified by paper. 0.2 is used
         
         # CNN component
         

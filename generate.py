@@ -50,7 +50,11 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Train and Test RUL Models")
     parser.add_argument("--partition", choices=["A", "B", "C"], required=True, help="Each autoencoder is trained on each partition")
+    parser.add_argument("--minmax", type=str, required=True, choices = ["True", "False"], help="Use minmax constrained data")
     args = parser.parse_args()
+
+    min_max = True if args.minmax == "True" else False 
+
     # 1. Initialize model (make sure dimensions match training)
     input_dim = 21
     hidden_dim = 50
@@ -64,10 +68,14 @@ if __name__ == "__main__":
             for sensor_group, sensors in sensor_groups.items():
                 #print(sensor_group)
                 #print(sensors)
-                dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14)
+                dataset = load_dataset(sequence_size, op_prof, sensor_group, interpolation=14, min_max=min_max, partition=partition)
                 model = OvercompleteAutoencoder(len(sensors), 50)
                 # load the model
-                model_path = filepath = "models/model_weights/" + "Auto" + "/" + partition + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(1) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
+
+                if min_max:
+                    model_path = filepath = "models/model_weights/" + "Auto" + "/min_max/" + partition + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(1) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
+                else:
+                    model_path = filepath = "models/model_weights/" + "Auto" + "/" + partition + "/" + sensor_group + "/" + str(sequence_size) + "/set_" + str(1) + "_op_prof_" + str(op_prof) + "_seq_" + str(sequence_size) + ".pt"
                 state_dict = torch.load(model_path)
                 model.load_state_dict(state_dict)
                 # Move model to device
@@ -83,7 +91,11 @@ if __name__ == "__main__":
                 latent_data, labels = generate_latent_representations(model, loader, device)
                 #print(f"Generated latent vectors shape: {latent_data.shape}")
                 #assert False, "analyzing shape"
-                filepath = "data/processed_data/Autoencoder/14->50/" + partition + "/" + sensor_group + "/op_prof_" + str(op_prof) + "/dataset_seq_" + str(sequence_size) + ".pt"
+                if min_max:
+                    filepath = "data/processed_data/Autoencoder/14-50/min_max/" + partition + "/" + sensor_group + "/op_prof_" + str(op_prof) + "/dataset_seq_" + str(sequence_size) + ".pt"
+                else:
+                    filepath = "data/processed_data/Autoencoder/14-50/" + partition + "/" + sensor_group + "/op_prof_" + str(op_prof) + "/dataset_seq_" + str(sequence_size) + ".pt"
+
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 
                 #c = np.array(latent_data)

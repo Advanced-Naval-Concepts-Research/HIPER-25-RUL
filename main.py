@@ -71,13 +71,20 @@ def load_dataset(sequence_size:int, op_prof:int, sensor_group:str, interpolation
 
     dir = 'data/processed_data'
 
-    if min_max:
-        dir += '/min_max'
+    
 
     if autodim is not None:
         assert partition == "A" or partition =="B" or partition =="C"
-        dir += "/Autoencoder/14->" +str(autodim) + "/" + partition
+        dir += "/Autoencoder/14-" +str(autodim) 
+        if min_max:
+            dir += '/min_max' + "/" + partition
+        else:
+            dir += '/' + partition
     else:
+
+        if min_max:
+            dir += '/min_max'
+
         if interpolation is not None:
             dir += '/interpolated/' + str(interpolation)
         else:
@@ -457,13 +464,19 @@ def setup_hyperparameters_lstmcnnAuto():
     # Returns a dictionary of hyperparameters
 
     hyperparameters = {
-        "learning_rate": 0.005,
+        "learning_rate": 0.001,
         "num_epochs": 500,
         "batch_size": 54,
         "optimizer": optim.Adam,
-        "loss_fn": RMSELoss(),
+        # "optimizer": optim.RMSprop,
+
+        "loss_fn": nn.MSELoss(),
+        # "loss_fn": RMSELoss(),
+
         "scheduler": None,
-        "weight_decay" : 0.0001
+        # "weight_decay" : 0.0001
+        "weight_decay" : 0
+
     }
     return hyperparameters
 
@@ -549,7 +562,7 @@ if __name__ == "__main__":
         hyperparameters = setup_hyperparameters(model)
         print(hyperparameters)
         if model == "Auto":
-            train_encoder(hyperparameters, sensor_groups, str(args.partition))
+            train_encoder(hyperparameters, sensor_groups, str(args.partition), min_max)
             end_dict = test_encoder(sensor_groups, str(args.partition))
             print(end_dict)
         else:
@@ -557,7 +570,7 @@ if __name__ == "__main__":
             if str(args.mode) == "train":
                 train_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
             else:
-                test_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
+                test_loss, test_acc = test_model(model, hyperparameters, sensor_groups, str(args.partition), min_max)
                 save_statistics("data/stats", model, min_max, sensor_groups, str(args.partition), test_loss, test_acc)
     
 
